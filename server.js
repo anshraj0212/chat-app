@@ -16,7 +16,7 @@ app.use(express.static(path.join(__dirname, "public")));
 // === Connect to MongoDB ===
 // Replace this with your own MongoDB Atlas connection string
 mongoose
-  .connect("YOUR_MONGODB_CONNECTION_STRING")
+  .connect("mongodb+srv://rajansh2004:anshraj02122004@cluster0.kczmgcv.mongodb.net/?appName=Cluster0")
   .then(() => console.log("✅ MongoDB connected successfully"))
   .catch((err) => console.log("❌ MongoDB connection error:", err));
 

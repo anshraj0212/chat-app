@@ -1,122 +1,47 @@
-* {
-  box-sizing: border-box;
-  font-family: "Segoe UI", sans-serif;
-}
-
-body {
-  background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 0;
-}
-
-.app {
-  width: 360px;
-  background:#1e293b;
-  border-radius:12px;
-  overflow:hidden;
-  box-shadow:0 0 20px rgba(0,0,0,.5);
-}
-
-.hidden { display:none; }
-
-.join-screen {
-  padding:30px;
-  text-align:center;
-}
-
-.join-screen h1 {
-  color:#38bdf8;
-  margin-bottom:20px;
-}
-
-.join-screen input {
-  width:100%;
-  padding:12px;
-  border-radius:6px;
-  border:none;
-  margin-bottom:10px;
-}
-
-.join-screen button {
-  width:100%;
-  padding:12px;
-  border:none;
-  background:#38bdf8;
-  color:#000;
-  font-weight:bold;
-  border-radius:6px;
-  cursor:pointer;
-}
-
-.chat-screen {
-  height:500px;
-  display:flex;
-  flex-direction:column;
-}
-
-.header {
+body{
+  font-family:Arial;
   background:#0f172a;
   color:white;
-  padding:10px;
   display:flex;
-  justify-content:space-between;
+  justify-content:center;
   align-items:center;
+  height:100vh;
 }
 
-.header button {
-  background:red;
-  border:none;
-  padding:6px 10px;
-  color:white;
-  border-radius:5px;
-  cursor:pointer;
-}
+.hidden{display:none;}
 
-.messages {
-  flex:1;
-  padding:10px;
-  overflow-y:auto;
-}
-
-.message {
-  margin-bottom:10px;
-  padding:8px 12px;
+.login,.chat{
+  background:#1e293b;
+  padding:20px;
   border-radius:10px;
-  max-width:80%;
+  width:350px;
 }
 
-.you {
-  background:#38bdf8;
-  color:black;
-  margin-left:auto;
-}
-
-.stranger {
-  background:#334155;
-  color:white;
-}
-
-.input-box {
-  display:flex;
+input{
+  width:100%;
   padding:10px;
-  background:#0f172a;
-}
-
-.input-box input {
-  flex:1;
-  padding:10px;
+  margin:5px 0;
+  border-radius:6px;
   border:none;
+}
+
+button{
+  width:100%;
+  padding:10px;
+  background:#38bdf8;
+  border:none;
+  border-radius:6px;
+  font-weight:bold;
+}
+
+.messages{
+  height:300px;
+  overflow-y:auto;
+  background:#020617;
+  padding:10px;
   border-radius:6px;
 }
 
-.input-box button {
-  margin-left:5px;
-  background:#38bdf8;
-  border:none;
-  padding:10px 14px;
-  border-radius:6px;
-  cursor:pointer;
+.msg{
+  margin:5px;
 }

@@ -1,34 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>One-on-One Chat</title>
-  <link rel="stylesheet" href="style.css">
+<title>One-on-One Chat</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="app">
+<div class="login" id="loginBox">
+  <h2>Enter Username</h2>
+  <input id="username" placeholder="Your name">
+  <button onclick="join()">Join</button>
+</div>
 
-  <div class="join-screen" id="joinScreen">
-    <h1>One-on-One Chat 💬</h1>
-    <input id="username" placeholder="Your name">
-    <button id="joinBtn">Start Chat</button>
+<div class="chat hidden" id="chatBox">
+  <div class="top">
+    <input id="receiver" placeholder="Receiver username">
   </div>
 
-  <div class="chat-screen hidden" id="chatScreen">
-    <div class="header">
-      <span>Live Chat</span>
-      <button id="nextBtn">Next</button>
-    </div>
+  <div class="messages" id="messages"></div>
 
-    <div class="messages" id="chatWindow"></div>
-
-    <div class="input-box">
-      <input id="message" placeholder="Type message...">
-      <button id="sendBtn">➤</button>
-    </div>
+  <div class="bottom">
+    <input id="msg" placeholder="Type message">
+    <button onclick="send()">Send</button>
   </div>
-
 </div>
 
 <script src="/socket.io/socket.io.js"></script>

@@ -1,31 +1,31 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>One-on-One Chat</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ansh Chat App 💬</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<div class="login" id="loginBox">
-  <h2>Enter Username</h2>
-  <input id="username" placeholder="Your name">
-  <button onclick="join()">Join</button>
-</div>
-
-<div class="chat hidden" id="chatBox">
-  <div class="top">
-    <input id="receiver" placeholder="Receiver username">
+  <div class="login-box">
+    <h2>Welcome to Ansh Chat</h2>
+    <input type="text" id="username" placeholder="Enter your name">
+    <button id="joinBtn">Join Chat</button>
   </div>
 
-  <div class="messages" id="messages"></div>
-
-  <div class="bottom">
-    <input id="msg" placeholder="Type message">
-    <button onclick="send()">Send</button>
+  <div class="chat-box hidden">
+    <div class="chat-header">
+      <h3>Chat Room 💬</h3>
+    </div>
+    <div id="chatWindow"></div>
+    <div class="chat-input">
+      <input type="text" id="receiver" placeholder="Receiver name">
+      <input type="text" id="message" placeholder="Type a message...">
+      <button id="sendBtn">Send</button>
+    </div>
   </div>
-</div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="client.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
 </body>
 </html>

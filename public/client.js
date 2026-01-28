@@ -1,50 +1,70 @@
 const socket = io();
 
-let user="";
+const loginBox = document.querySelector(".login-box");
+const chatBox = document.querySelector(".chat-box");
+const joinBtn = document.getElementById("joinBtn");
+const sendBtn = document.getElementById("sendBtn");
+const chatWindow = document.getElementById("chatWindow");
 
-function join(){
-  user = document.getElementById("username").value.trim();
-  if(!user) return;
+let username = "";
+let currentReceiver = "";
 
-  localStorage.setItem("username",user);
+// === Join Chat ===
+joinBtn.onclick = () => {
+  username = document.getElementById("username").value.trim();
+  if (username) {
+    socket.emit("register", username);
+    loginBox.classList.add("hidden");
+    chatBox.classList.remove("hidden");
+    addMessage(`✅ Logged in as ${username}`);
+  }
+};
 
-  socket.emit("register",user);
-
-  document.getElementById("loginBox").classList.add("hidden");
-  document.getElementById("chatBox").classList.remove("hidden");
-}
-
-// Auto login
-const saved = localStorage.getItem("username");
-if(saved){
-  user=saved;
-  socket.emit("register",user);
-  document.getElementById("loginBox").classList.add("hidden");
-  document.getElementById("chatBox").classList.remove("hidden");
-}
-
-// Load history
-socket.on("history", msgs=>{
-  document.getElementById("messages").innerHTML="";
-  msgs.forEach(m=>add(m));
+// === Send message ===
+sendBtn.onclick = sendMessage;
+document.getElementById("message").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") sendMessage();
 });
 
-// New message
-socket.on("newMessage", add);
+function sendMessage() {
+  const receiver = document.getElementById("receiver").value.trim();
+  const message = document.getElementById("message").value.trim();
 
-function send(){
-  const receiver=document.getElementById("receiver").value.trim();
-  const message=document.getElementById("msg").value.trim();
+  if (!receiver || !message) return;
 
-  if(!receiver || !message) return;
-
-  socket.emit("sendMessage",{sender:user,receiver,message});
-  document.getElementById("msg").value="";
+  currentReceiver = receiver; // save last receiver
+  socket.emit("privateMessage", { sender: username, receiver, message });
+  addMessage(`🟢 You → ${receiver}: ${message}`);
+  document.getElementById("message").value = "";
 }
 
-function add(m){
-  const div=document.createElement("div");
-  div.className="msg";
-  div.innerText=`${m.sender}: ${m.message}`;
-  document.getElementById("messages").appendChild(div);
+// === Receive messages ===
+socket.on("privateMessage", ({ sender, message }) => {
+  addMessage(`💬 ${sender}: ${message}`);
+});
+
+// === Request chat history when receiver is entered ===
+document.getElementById("receiver").addEventListener("change", () => {
+  const receiver = document.getElementById("receiver").value.trim();
+  if (receiver) {
+    socket.emit("getMessages", { sender: username, receiver });
+  }
+});
+
+// === Receive message history ===
+socket.on("messageHistory", (history) => {
+  chatWindow.innerHTML = "";
+  history.forEach((msg) => {
+    const from = msg.sender === username ? "🟢 You" : `💬 ${msg.sender}`;
+    addMessage(`${from} → ${msg.receiver}: ${msg.message}`);
+  });
+});
+
+// === Display message in chat window ===
+function addMessage(msg) {
+  const div = document.createElement("div");
+  div.classList.add("message");
+  div.innerHTML = `<strong>${msg}</strong>`;
+  chatWindow.appendChild(div);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
 }

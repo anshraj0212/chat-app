@@ -1,71 +1,85 @@
+// === Import Required Modules ===
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
 const mongoose = require("mongoose");
 
+// === Initialize Express App and Server ===
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// === Serve Static Files (Frontend) ===
 app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json());
 
-// MongoDB
-mongoose.connect(process.env.MONGODB_URI || "YOUR_MONGODB_URI")
-.then(()=>console.log("MongoDB connected"))
-.catch(err=>console.log(err));
+// === Connect to MongoDB ===
+// Replace this with your own MongoDB Atlas connection string
+mongoose
+  .connect("mongodb+srv://rajansh2004:anshraj02122004@cluster0.kczmgcv.mongodb.net/?appName=Cluster0")
+  .then(() => console.log("✅ MongoDB connected successfully"))
+  .catch((err) => console.log("❌ MongoDB connection error:", err));
 
-// Message Schema
-const MessageSchema = new mongoose.Schema({
-  sender:String,
-  receiver:String,
-  message:String,
-  time:{type:Date,default:Date.now}
+// === Define Message Schema ===
+const messageSchema = new mongoose.Schema({
+  sender: String,
+  receiver: String,
+  message: String,
+  timestamp: { type: Date, default: Date.now },
 });
-const Message = mongoose.model("Message",MessageSchema);
 
-// Online users
-let users = {};
+const Message = mongoose.model("Message", messageSchema);
 
-// Socket logic
-io.on("connection",(socket)=>{
+// === Store Active Users ===
+let users = {}; // username: socket.id
 
-  socket.on("register", async (username)=>{
+// === Socket.io Connection Handling ===
+io.on("connection", (socket) => {
+  console.log("🟢 A user connected:", socket.id);
+
+  socket.on("register", (username) => {
     users[username] = socket.id;
-
-    // Send chat history
-    const history = await Message.find({
-      $or:[
-        {sender:username},
-        {receiver:username}
-      ]
-    }).sort({time:1});
-
-    socket.emit("history", history);
+    console.log(`👤 ${username} connected with ID: ${socket.id}`);
+    io.emit("onlineUsers", Object.keys(users));
   });
 
-  socket.on("sendMessage", async ({sender,receiver,message})=>{
+  socket.on("privateMessage", async ({ sender, receiver, message }) => {
+    const receiverId = users[receiver];
+    const msg = new Message({ sender, receiver, message });
+    await msg.save();
 
-    const msg = await Message.create({sender,receiver,message});
-
-    // Send to receiver if online
-    if(users[receiver]){
-      io.to(users[receiver]).emit("newMessage", msg);
+    if (receiverId) {
+      io.to(receiverId).emit("privateMessage", { sender, message });
+    } else {
+      socket.emit("privateMessage", {
+        sender: "System",
+        message: `${receiver} is offline.`,
+      });
     }
-
-    // Send back to sender
-    socket.emit("newMessage", msg);
   });
 
-  socket.on("disconnect", ()=>{
-    for(let u in users){
-      if(users[u] === socket.id){
-        delete users[u];
+  socket.on("getMessages", async ({ sender, receiver }) => {
+    const history = await Message.find({
+      $or: [
+        { sender, receiver },
+        { sender: receiver, receiver: sender },
+      ],
+    }).sort({ timestamp: 1 });
+    socket.emit("messageHistory", history);
+  });
+
+  socket.on("disconnect", () => {
+    for (let username in users) {
+      if (users[username] === socket.id) {
+        delete users[username];
+        break;
       }
     }
+    io.emit("onlineUsers", Object.keys(users));
+    console.log("🔴 A user disconnected:", socket.id);
   });
 });
 
+// === Start the Server ===
 const PORT = process.env.PORT || 3000;
-server.listen(PORT,()=>console.log("Server running on",PORT));
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

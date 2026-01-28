@@ -2,30 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ansh Chat App 💬</title>
+  <title>One-on-One Chat</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="login-box">
-    <h2>Welcome to Ansh Chat</h2>
-    <input type="text" id="username" placeholder="Enter your name">
-    <button id="joinBtn">Join Chat</button>
+
+<div class="app">
+
+  <div class="join-screen" id="joinScreen">
+    <h1>One-on-One Chat 💬</h1>
+    <input id="username" placeholder="Your name">
+    <button id="joinBtn">Start Chat</button>
   </div>
 
-  <div class="chat-box hidden">
-    <div class="chat-header">
-      <h3>Chat Room 💬</h3>
+  <div class="chat-screen hidden" id="chatScreen">
+    <div class="header">
+      <span>Live Chat</span>
+      <button id="nextBtn">Next</button>
     </div>
-    <div id="chatWindow"></div>
-    <div class="chat-input">
-      <input type="text" id="receiver" placeholder="Receiver name">
-      <input type="text" id="message" placeholder="Type a message...">
-      <button id="sendBtn">Send</button>
+
+    <div class="messages" id="chatWindow"></div>
+
+    <div class="input-box">
+      <input id="message" placeholder="Type message...">
+      <button id="sendBtn">➤</button>
     </div>
   </div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="client.js"></script>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
 </body>
 </html>

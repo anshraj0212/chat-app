@@ -1,3 +1,4 @@
+// client.js (Option B - enhanced UX)
 const socket = io();
 
 const loginBox = document.querySelector(".login-box");
@@ -6,65 +7,135 @@ const joinBtn = document.getElementById("joinBtn");
 const sendBtn = document.getElementById("sendBtn");
 const chatWindow = document.getElementById("chatWindow");
 
-let username = "";
-let currentReceiver = "";
+const nameInput = document.getElementById("username");
+const receiverInput = document.getElementById("receiver");
+const messageInput = document.getElementById("message");
+
+let username = localStorage.getItem("ansh_name") || "";
+
+// Pre-fill saved name & set initial button states
+if (username) nameInput.value = username;
+toggleJoin();
+toggleSend();
 
 // === Join Chat ===
-joinBtn.onclick = () => {
-  username = document.getElementById("username").value.trim();
-  if (username) {
-    socket.emit("register", username);
-    loginBox.classList.add("hidden");
-    chatBox.classList.remove("hidden");
-    addMessage(`✅ Logged in as ${username}`);
-  }
-};
+joinBtn.onclick = handleJoin;
 
-// === Send message ===
+// Enter to join
+nameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") handleJoin();
+});
+nameInput.addEventListener("input", toggleJoin);
+
+function handleJoin() {
+  username = (nameInput.value || "").trim();
+  if (username.length < 2) return;
+
+  socket.emit("register", username);
+  localStorage.setItem("ansh_name", username);
+
+  loginBox.classList.add("hidden");
+  chatBox.classList.remove("hidden");
+
+  addMessage(`✅ Logged in as ${username}`, { meta: true });
+  receiverInput?.focus();
+
+  // Confetti burst for delight
+  confettiBurst(120);
+}
+
+function toggleJoin() {
+  const ok = (nameInput.value || "").trim().length >= 2;
+  joinBtn.disabled = !ok;
+}
+
+// === Send message (button or Enter) ===
 sendBtn.onclick = sendMessage;
-document.getElementById("message").addEventListener("keypress", (e) => {
+messageInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendMessage();
 });
+messageInput.addEventListener("input", toggleSend);
 
+function toggleSend() {
+  sendBtn.disabled = (messageInput.value || "").trim().length === 0;
+}
+
+// === Send message function ===
 function sendMessage() {
-  const receiver = document.getElementById("receiver").value.trim();
-  const message = document.getElementById("message").value.trim();
+  const receiver = (receiverInput.value || "").trim();
+  const message = (messageInput.value || "").trim();
 
   if (!receiver || !message) return;
 
-  currentReceiver = receiver; // save last receiver
   socket.emit("privateMessage", { sender: username, receiver, message });
-  addMessage(`🟢 You → ${receiver}: ${message}`);
-  document.getElementById("message").value = "";
+  addMessage(`You → ${receiver}: ${message}`, { you: true });
+
+  messageInput.value = "";
+  toggleSend();
+  messageInput.focus();
 }
 
-// === Receive messages ===
+// === Receive incoming message ===
 socket.on("privateMessage", ({ sender, message }) => {
-  addMessage(`💬 ${sender}: ${message}`);
+  addMessage(`${sender}: ${message}`);
 });
 
-// === Request chat history when receiver is entered ===
-document.getElementById("receiver").addEventListener("change", () => {
-  const receiver = document.getElementById("receiver").value.trim();
-  if (receiver) {
-    socket.emit("getMessages", { sender: username, receiver });
-  }
+// === (Optional) message history if server supports it ===
+receiverInput?.addEventListener("change", () => {
+  const receiver = (receiverInput.value || "").trim();
+  if (receiver) socket.emit("getMessages", { sender: username, receiver });
 });
 
-// === Receive message history ===
-socket.on("messageHistory", (history) => {
+socket.on("messageHistory", (history = []) => {
   chatWindow.innerHTML = "";
   history.forEach((msg) => {
-    const from = msg.sender === username ? "🟢 You" : `💬 ${msg.sender}`;
-    addMessage(`${from} → ${msg.receiver}: ${msg.message}`);
+    const fromYou = msg.sender === username;
+    const text = fromYou
+      ? `You → ${msg.receiver}: ${msg.message}`
+      : `${msg.sender} → ${msg.receiver}: ${msg.message}`;
+    addMessage(text, { you: fromYou });
   });
 });
 
-// === Display message in chat window ===
-function addMessage(msg) {
+// === Display message in chat window (safe, styled) ===
+function addMessage(text, opts = {}) {
   const div = document.createElement("div");
   div.classList.add("message");
-  div.innerHTML = `<strong>${msg}</strong>`;
+  if (opts.meta) div.classList.add("meta");
+  if (opts.you) div.classList.add("you");
+  div.textContent = text; // safer than innerHTML
   chatWindow.appendChild(div);
   chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+// === Confetti (CSS-powered, no library) ===
+function confettiBurst(count = 100) {
+  const colors = [
+    "#22d3ee", "#67e8f9", "#a5f3fc", "#cffafe",
+    "#06b6d4", "#0891b2", "#e0f2fe", "#ffffff"
+  ];
+  const durationMin = 900;
+  const durationMax = 1800;
+
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement("span");
+    s.className = "confetti";
+    const size = 6 + Math.random() * 6;
+    const left = Math.random() * 100; // vw
+    const rot = (Math.random() * 360) | 0;
+    const dur = (durationMin + Math.random() * (durationMax - durationMin)) | 0;
+    const delay = (Math.random() * 120) | 0;
+
+    s.style.left = `${left}vw`;
+    s.style.width = `${size}px`;
+    s.style.height = `${size * 1.6}px`;
+    s.style.background = colors[(Math.random() * colors.length) | 0];
+    s.style.setProperty("--rot", rot + "deg");
+    s.style.animationDuration = `${dur}ms, ${Math.max(700, dur - 400)}ms`;
+    s.style.animationDelay = `${delay}ms, ${delay}ms`;
+    s.style.transform = `translateY(-10px) rotate(${rot}deg)`;
+
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), dur + delay + 150);
+  }
 }

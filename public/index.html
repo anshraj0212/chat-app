@@ -1,30 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ansh Chat App 💬</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="login-box">
-    <h2>Welcome to Ansh Chat</h2>
-    <input type="text" id="username" placeholder="Enter your name">
-    <button id="joinBtn">Join Chat</button>
+  <!-- Background layers -->
+  <div class="bg">
+    <div class="mesh" aria-hidden="true"></div>
+    <div class="blob b1" aria-hidden="true"></div>
+    <div class="blob b2" aria-hidden="true"></div>
+    <div class="blob b3" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
   </div>
 
-  <div class="chat-box hidden">
-    <div class="chat-header">
-      <h3>Chat Room 💬</h3>
-    </div>
-    <div id="chatWindow"></div>
-    <div class="chat-input">
-      <input type="text" id="receiver" placeholder="Receiver name">
-      <input type="text" id="message" placeholder="Type a message...">
-      <button id="sendBtn">Send</button>
-    </div>
-  </div>
+  <!-- ===== Login (Join) ===== -->
+  <main class="wrap">
+    <section class="login-box card">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <h1 class="title">💬 Welcome to <span class="brand-text">Ansh Chat</span></h1>
+      </div>
+      <p class="subtitle">Private one‑to‑one. No sign‑up. Vibe in.</p>
 
+      <div class="field">
+        <input type="text" id="username" class="input pill"
+               placeholder="Enter your name" autocomplete="name"
+               minlength="2" maxlength="24" required autofocus />
+      </div>
+
+      <button id="joinBtn" class="btn pill" type="button" disabled>
+        Join Chat
+      </button>
+
+      <div class="row" role="note">
+        <small class="subtitle no-margin">Tip: press <kbd>Enter</kbd> to join</small>
+      </div>
+    </section>
+
+    <!-- ===== Chat UI ===== -->
+    <section class="chat-box hidden card-lg">
+      <header class="chat-header">
+        <div class="brand small">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <h3 class="chat-title">Chat Room 💬</h3>
+        </div>
+        <div class="presence" id="presence">Online</div>
+      </header>
+
+      <div id="chatWindow" class="chat-window" aria-live="polite" aria-relevant="additions"></div>
+
+      <footer class="chat-input">
+        <input type="text" id="receiver" class="input pill" placeholder="Receiver name" />
+        <input type="text" id="message" class="input pill" placeholder="Type a message…" />
+        <button id="sendBtn" class="btn pill send" type="button" disabled>Send</button>
+      </footer>
+    </section>
+  </main>
+
+  <!-- Socket.IO (served by your server) + App scripts -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
 </body>

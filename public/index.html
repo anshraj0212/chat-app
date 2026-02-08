@@ -4,35 +4,38 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Talksy 💬</title>
+
+  <!-- Styles -->
   <link rel="stylesheet" href="style.css" />
+  <!-- Optional favicon -->
+  <!-- <link rel="icon" href="/favicon.ico" /> -->
 </head>
 <body>
-
   <!-- Background layers -->
   <div class="bg">
-    <div class="mesh"></div>
-    <div class="blob b1"></div>
-    <div class="blob b2"></div>
-    <div class="blob b3"></div>
-    <div class="grain"></div>
+    <div class="mesh" aria-hidden="true"></div>
+    <div class="blob b1" aria-hidden="true"></div>
+    <div class="blob b2" aria-hidden="true"></div>
+    <div class="blob b3" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
   </div>
 
-  <!-- Login -->
+  <!-- ===== Login (Join) ===== -->
   <main class="wrap">
     <section class="login-box card">
       <div class="brand">
-        <div class="brand-mark"></div>
-        <h1 class="title">Welcome to <span class="brand-text">Talksy</span></h1>
+        <div class="brand-mark" aria-hidden="true"></div>
+        <h1 class="title">💬 Welcome to <span class="brand-text">Talksy</span></h1>
       </div>
-
-      <p class="subtitle">Private. Real-time. Your vibe space.</p>
+      <p class="subtitle">Private one‑to‑one. No sign‑up. Vibe in.</p>
 
       <div class="field">
         <input
           type="text"
           id="username"
           class="input pill"
-          placeholder="Enter your username"
+          placeholder="Enter your name"
+          autocomplete="name"
           minlength="2"
           maxlength="24"
           required
@@ -40,51 +43,36 @@
         />
       </div>
 
-      <button id="joinBtn" class="btn pill" disabled>
-        Start Chat
+      <button id="joinBtn" class="btn pill" type="button" disabled>
+        Join Chat
       </button>
 
-      <div class="row">
-        <small class="subtitle no-margin">Press Enter to continue</small>
+      <div class="row" role="note">
+        <small class="subtitle no-margin">Tip: press <kbd>Enter</kbd> to join</small>
       </div>
     </section>
 
-    <!-- Chat UI -->
+    <!-- ===== Chat UI ===== -->
     <section class="chat-box hidden card-lg">
       <header class="chat-header">
         <div class="brand small">
-          <div class="brand-mark"></div>
-          <h3 class="chat-title">Talksy Chat</h3>
+          <div class="brand-mark" aria-hidden="true"></div>
+          <h3 class="chat-title">Talksy 💬</h3>
         </div>
-
-        <!-- IMPORTANT: ID must match client.js -->
-        <div class="presence" id="onlineStatus">Offline</div>
+        <div class="presence" id="presence">Online</div>
       </header>
 
-      <div id="chatWindow" class="chat-window"></div>
+      <div id="chatWindow" class="chat-window" aria-live="polite" aria-relevant="additions"></div>
 
       <footer class="chat-input">
-        <input
-          type="text"
-          id="receiver"
-          class="input pill"
-          placeholder="Receiver username"
-        />
-
-        <input
-          type="text"
-          id="message"
-          class="input pill"
-          placeholder="Type a message..."
-        />
-
-        <button id="sendBtn" class="btn pill send" disabled>
-          Send
-        </button>
+        <input type="text" id="receiver" class="input pill" placeholder="Receiver name" />
+        <input type="text" id="message" class="input pill" placeholder="Type a message…" />
+        <button id="sendBtn" class="btn pill send" type="button" disabled>Send</button>
       </footer>
     </section>
   </main>
 
+  <!-- Socket.IO + App scripts -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
 </body>

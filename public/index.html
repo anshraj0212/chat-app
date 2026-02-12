@@ -5,34 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Talksy 💬</title>
 
-  <!-- Styles -->
-  style.css
+  <!-- Styles (THIS was broken in your file) -->
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
 
-  <!-- ===== Splash Screen (FULLSCREEN) ===== -->
-  <div id="splash" class="splash" aria-label="Talksy">
-    <img src="assets/talksy-logo.png" alt="Talksy logo" class="splash-logo" />
+  <!-- ===== Splash Screen ===== -->
+  <div id="splash" class="splash">
+    <img src="assets/talksy-logo.png" class="splash-logo" />
   </div>
 
   <!-- ===== Background layers ===== -->
   <div class="bg">
-    <div class="mesh" aria-hidden="true"></div>
-    <div class="blob b1" aria-hidden="true"></div>
-    <div class="blob b2" aria-hidden="true"></div>
-    <div class="blob b3" aria-hidden="true"></div>
-    <div class="grain" aria-hidden="true"></div>
+    <div class="mesh"></div>
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+    <div class="blob b3"></div>
+    <div class="grain"></div>
   </div>
 
-  <!-- ===== Login (Join) ===== -->
+  <!-- ===== Main Content ===== -->
   <main class="wrap">
-    <section class="login-box card">
 
-      <!-- Brand row with mini logo tile -->
+    <!-- Login box -->
+    <section class="login-box card">
       <div class="brand">
         <div class="heading-logo-tile">
-          <img src="assets/talksy-logo.png" alt="Talksy logo" class="heading-logo" />
+          <img src="assets/talksy-logo.png" class="heading-logo" />
         </div>
         <h1 class="title">💬 Welcome to <span class="brand-text">Talksy</span></h1>
       </div>
@@ -40,43 +40,30 @@
       <p class="subtitle">Private one‑to‑one. No sign‑up. Vibe in.</p>
 
       <div class="field">
-        <input
-          type="text"
-          id="username"
-          class="input pill"
-          placeholder="Enter your name"
-          autocomplete="name"
-          minlength="2"
-          maxlength="24"
-          required
-          autofocus
-        />
+        <input type="text" id="username" class="input pill"
+        placeholder="Enter your name" minlength="2" autofocus />
       </div>
 
-      <button id="joinBtn" class="btn pill" type="button" disabled>
-        Join Chat
-      </button>
+      <button id="joinBtn" class="btn pill" disabled>Join Chat</button>
 
-      <div class="row" role="note">
+      <div class="row">
         <small class="subtitle no-margin">Tip: press <kbd>Enter</kbd> to join</small>
       </div>
-
     </section>
 
-    <!-- ===== Chat UI ===== -->
+    <!-- Chat box -->
     <section class="chat-box hidden card-lg">
       <header class="chat-header">
         <div class="brand small">
-          <img src="assets/talksy-logo.png" alt="Talksy logo" class="chat-logo" />
+          <img src="assets/talksy-logo.png" class="chat-logo" />
           <h3 class="chat-title">Talksy 💬</h3>
         </div>
         <div class="presence" id="presence">Online</div>
       </header>
 
-      <div id="chatWindow" class="chat-window" aria-live="polite"></div>
+      <div id="chatWindow" class="chat-window"></div>
 
-      <!-- Typing indicator -->
-      <div id="typingIndicator" class="typing hidden" aria-live="polite">
+      <div id="typingIndicator" class="typing hidden">
         <span id="typingText"><strong>Someone</strong> is typing</span>
         <span class="dots"><i></i><i></i><i></i></span>
       </div>
@@ -84,15 +71,15 @@
       <footer class="chat-input">
         <input type="text" id="receiver" class="input pill" placeholder="Receiver name" />
         <input type="text" id="message" class="input pill" placeholder="Type a message…" />
-        <button id="sendBtn" class="btn pill send" type="button" disabled>Send</button>
+        <button id="sendBtn" class="btn pill send" disabled>Send</button>
       </footer>
     </section>
 
   </main>
 
   <!-- Scripts -->
-  /socket.io/socket.io.js</script>
-  client.js</script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
 
 </body>
 </html>

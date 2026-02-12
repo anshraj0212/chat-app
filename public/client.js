@@ -1,4 +1,4 @@
-// client.js (Option B - enhanced UX)
+// client.js (Enhanced UX + Typing Indicator)
 const socket = io();
 
 const loginBox = document.querySelector(".login-box");
@@ -11,7 +11,13 @@ const nameInput = document.getElementById("username");
 const receiverInput = document.getElementById("receiver");
 const messageInput = document.getElementById("message");
 
+// Typing indicator elements (make sure these exist in index.html)
+const typingEl = document.getElementById("typingIndicator");
+const typingTextEl = document.getElementById("typingText");
+
 let username = localStorage.getItem("ansh_name") || "";
+let typingTimeout = null;
+const TYPING_DELAY = 1200; // ms to consider "stopped typing"
 
 // Pre-fill saved name & set initial button states
 if (username) nameInput.value = username;
@@ -54,7 +60,10 @@ sendBtn.onclick = sendMessage;
 messageInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendMessage();
 });
-messageInput.addEventListener("input", toggleSend);
+messageInput.addEventListener("input", () => {
+  toggleSend();
+  emitTyping();
+});
 
 function toggleSend() {
   sendBtn.disabled = (messageInput.value || "").trim().length === 0;
@@ -70,6 +79,9 @@ function sendMessage() {
   socket.emit("privateMessage", { sender: username, receiver, message });
   addMessage(`You → ${receiver}: ${message}`, { you: true });
 
+  // Stop typing indicator on send
+  socket.emit("stopTyping", { sender: username, receiver });
+
   messageInput.value = "";
   toggleSend();
   messageInput.focus();
@@ -78,6 +90,7 @@ function sendMessage() {
 // === Receive incoming message ===
 socket.on("privateMessage", ({ sender, message }) => {
   addMessage(`${sender}: ${message}`);
+  hideTyping(); // hide indicator when message arrives
 });
 
 // === (Optional) message history if server supports it ===
@@ -97,6 +110,31 @@ socket.on("messageHistory", (history = []) => {
   });
 });
 
+// === Typing indicator: emit while typing, stop after idle ===
+function emitTyping() {
+  const receiver = (receiverInput.value || "").trim();
+  if (!username || !receiver) return;
+
+  socket.emit("typing", { sender: username, receiver });
+
+  // debounce stopTyping after inactivity
+  if (typingTimeout) clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => {
+    socket.emit("stopTyping", { sender: username, receiver });
+  }, TYPING_DELAY);
+}
+
+// === Listen for typing from others ===
+socket.on("typing", ({ sender }) => {
+  if (!sender || sender === username) return; // ignore self
+  showTyping(sender);
+});
+
+socket.on("stopTyping", ({ sender }) => {
+  if (!sender || sender === username) return; // ignore self
+  hideTyping();
+});
+
 // === Display message in chat window (safe, styled) ===
 function addMessage(text, opts = {}) {
   const div = document.createElement("div");
@@ -106,6 +144,24 @@ function addMessage(text, opts = {}) {
   div.textContent = text; // safer than innerHTML
   chatWindow.appendChild(div);
   chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+// === Typing UI helpers ===
+function showTyping(senderName) {
+  if (!typingEl || !typingTextEl) return;
+  typingTextEl.innerHTML = `<strong>${escapeHtml(senderName)}</strong> is typing`;
+  typingEl.classList.remove("hidden");
+  // keep indicator visible near the bottom
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function hideTyping() {
+  if (!typingEl) return;
+  typingEl.classList.add("hidden");
+}
+
+function escapeHtml(str){
+  return str.replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 }
 
 // === Confetti (CSS-powered, no library) ===

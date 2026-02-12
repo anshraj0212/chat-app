@@ -8,7 +8,7 @@
   <!-- Styles -->
   <link rel="stylesheet" href="style.css" />
   <!-- Optional favicon -->
-  <!-- <link rel="icon" href="/assets/favicon.png" /> -->
+  <!-- <link rel="icon" href="assets/favicon.png" /> -->
 </head>
 <body>
   <!-- Background layers -->
@@ -23,15 +23,14 @@
   <!-- ===== Login (Join) ===== -->
   <main class="wrap">
     <section class="login-box card">
-      <!-- Logo on login screen -->
-      <div class="logo-container">
-        <img src="assets/talksy-logo.png" alt="Talksy logo" class="talksy-logo" />
-      </div>
-
+      <!-- Brand row with mini logo tile + heading (logo sits beside text) -->
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true"></div>
+        <div class="heading-logo-tile" aria-hidden="true">
+          <img src="assets/talksy-logo.png" alt="Talksy logo" class="heading-logo" />
+        </div>
         <h1 class="title">💬 Welcome to <span class="brand-text">Talksy</span></h1>
       </div>
+
       <p class="subtitle">Private one‑to‑one. No sign‑up. Vibe in.</p>
 
       <div class="field">
@@ -61,7 +60,6 @@
     <section class="chat-box hidden card-lg">
       <header class="chat-header">
         <div class="brand small">
-          <!-- Logo in chat header -->
           <img src="assets/talksy-logo.png" alt="Talksy logo" class="chat-logo" />
           <h3 class="chat-title">Talksy 💬</h3>
         </div>
@@ -69,6 +67,12 @@
       </header>
 
       <div id="chatWindow" class="chat-window" aria-live="polite" aria-relevant="additions"></div>
+
+      <!-- Typing indicator (shows “<name> is typing …”) -->
+      <div id="typingIndicator" class="typing hidden" aria-live="polite">
+        <span id="typingText"><strong>Someone</strong> is typing</span>
+        <span class="dots"><i></i><i></i><i></i></span>
+      </div>
 
       <footer class="chat-input">
         <input type="text" id="receiver" class="input pill" placeholder="Receiver name" />

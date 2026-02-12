@@ -1,4 +1,5 @@
-// client.js (Enhanced UX + Typing Indicator)
+// public/client.js
+// Enhanced UX + Typing Indicator + Splash hide
 const socket = io();
 
 const loginBox = document.querySelector(".login-box");
@@ -11,7 +12,10 @@ const nameInput = document.getElementById("username");
 const receiverInput = document.getElementById("receiver");
 const messageInput = document.getElementById("message");
 
-// Typing indicator elements (make sure these exist in index.html)
+// Splash elements (NEW)
+const splash = document.getElementById("splash");
+
+// Typing indicator elements
 const typingEl = document.getElementById("typingIndicator");
 const typingTextEl = document.getElementById("typingText");
 
@@ -19,12 +23,35 @@ let username = localStorage.getItem("ansh_name") || "";
 let typingTimeout = null;
 const TYPING_DELAY = 1200; // ms to consider "stopped typing"
 
-// Pre-fill saved name & set initial button states
+// ===== Splash handling (NEW) =====
+function hideSplash() {
+  if (!splash || splash.dataset.hidden === "1") return;
+  // graceful fade-out; CSS animation already runs, this is JS fallback/skip
+  splash.style.transition = "opacity .4s ease";
+  splash.style.opacity = "0";
+  setTimeout(() => {
+    splash.style.display = "none";
+    splash.setAttribute("data-hidden", "1");
+    // Focus the name field right after splash
+    nameInput?.focus();
+  }, 420);
+}
+
+window.addEventListener("load", () => {
+  if (!splash) return;
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Match total splash duration (~2.2s) unless reduced-motion
+  setTimeout(hideSplash, prefersReducedMotion ? 300 : 2200);
+  // Let user click/tap to skip the splash immediately
+  splash.addEventListener("click", hideSplash);
+});
+
+// ===== Init states =====
 if (username) nameInput.value = username;
 toggleJoin();
 toggleSend();
 
-// === Join Chat ===
+// ===== Join Chat =====
 joinBtn.onclick = handleJoin;
 
 // Enter to join
@@ -55,7 +82,7 @@ function toggleJoin() {
   joinBtn.disabled = !ok;
 }
 
-// === Send message (button or Enter) ===
+// ===== Send message (button or Enter) =====
 sendBtn.onclick = sendMessage;
 messageInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendMessage();
@@ -69,7 +96,7 @@ function toggleSend() {
   sendBtn.disabled = (messageInput.value || "").trim().length === 0;
 }
 
-// === Send message function ===
+// ===== Send message function =====
 function sendMessage() {
   const receiver = (receiverInput.value || "").trim();
   const message = (messageInput.value || "").trim();
@@ -87,13 +114,13 @@ function sendMessage() {
   messageInput.focus();
 }
 
-// === Receive incoming message ===
+// ===== Receive incoming message =====
 socket.on("privateMessage", ({ sender, message }) => {
   addMessage(`${sender}: ${message}`);
   hideTyping(); // hide indicator when message arrives
 });
 
-// === (Optional) message history if server supports it ===
+// ===== (Optional) message history if server supports it =====
 receiverInput?.addEventListener("change", () => {
   const receiver = (receiverInput.value || "").trim();
   if (receiver) socket.emit("getMessages", { sender: username, receiver });
@@ -110,7 +137,7 @@ socket.on("messageHistory", (history = []) => {
   });
 });
 
-// === Typing indicator: emit while typing, stop after idle ===
+// ===== Typing indicator: emit while typing, stop after idle =====
 function emitTyping() {
   const receiver = (receiverInput.value || "").trim();
   if (!username || !receiver) return;
@@ -124,7 +151,7 @@ function emitTyping() {
   }, TYPING_DELAY);
 }
 
-// === Listen for typing from others ===
+// ===== Listen for typing from others =====
 socket.on("typing", ({ sender }) => {
   if (!sender || sender === username) return; // ignore self
   showTyping(sender);
@@ -135,7 +162,7 @@ socket.on("stopTyping", ({ sender }) => {
   hideTyping();
 });
 
-// === Display message in chat window (safe, styled) ===
+// ===== Display message in chat window (safe, styled) =====
 function addMessage(text, opts = {}) {
   const div = document.createElement("div");
   div.classList.add("message");
@@ -146,7 +173,7 @@ function addMessage(text, opts = {}) {
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-// === Typing UI helpers ===
+// ===== Typing UI helpers =====
 function showTyping(senderName) {
   if (!typingEl || !typingTextEl) return;
   typingTextEl.innerHTML = `<strong>${escapeHtml(senderName)}</strong> is typing`;
@@ -160,11 +187,17 @@ function hideTyping() {
   typingEl.classList.add("hidden");
 }
 
-function escapeHtml(str){
-  return str.replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, (s) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[s]));
 }
 
-// === Confetti (CSS-powered, no library) ===
+// ===== Confetti (CSS-powered, no library) =====
 function confettiBurst(count = 100) {
   const colors = [
     "#22d3ee", "#67e8f9", "#a5f3fc", "#cffafe",

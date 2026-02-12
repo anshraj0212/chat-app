@@ -100,7 +100,7 @@ body{
 .brand.small{ margin: 12px 0; display:flex; align-items:center; gap:10px; }
 .brand-text{ color:#b9f2ff; }
 
-/* Decorative brand mark (you can hide it when using the heading logo tile) */
+/* Decorative brand mark (optional) */
 .brand-mark{
   width:40px; height:40px; border-radius:12px; padding:2px;
   background: conic-gradient(from 230deg, #22d3ee, #67e8f9, #a5f3fc, #22d3ee);
@@ -199,16 +199,120 @@ body{
   100% { transform: rotate(360deg) }
 }
 
-/* ===== Talksy logo placements & subtle hover glow ===== */
-.logo-container{
-  display:flex;
-  justify-content:center;
-  margin-bottom:18px;
+/* ===== Mini logo tile next to heading ===== */
+.heading-logo-tile{
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  display:flex; align-items:center; justify-content:center;
+  margin-right: 6px;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 8px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.10);
+}
+.heading-logo{
+  width: 36px; height: 36px; object-fit: contain;
+  user-select: none; -webkit-user-drag: none;
+  transition: filter .25s ease, transform .2s ease;
+  filter: drop-shadow(0 3px 10px rgba(255,255,255,0.12));
+}
+.heading-logo-tile:hover .heading-logo{
+  filter:
+    drop-shadow(0 0 10px rgba(34,211,238,0.28))
+    drop-shadow(0 0 16px rgba(236,72,153,0.20));
+  transform: translateY(-1px);
 }
 
-.talksy-logo{
-  width:140px;          /* Resize logo on login screen */
+/* ===== Chat header logo ===== */
+.chat-logo{
+  width:40px;
   height:auto;
+  margin-right:10px;
   user-select:none;
   -webkit-user-drag:none;
   transition: filter .35s ease, transform .25s ease;
+  filter: drop-shadow(0 2px 8px rgba(255,255,255,0.12));
+}
+.chat-logo:hover{
+  filter:
+    drop-shadow(0 0 8px rgba(103,232,249,0.28))
+    drop-shadow(0 0 14px rgba(236,72,153,0.20));
+  transform: translateY(-1px);
+}
+
+/* ===== Typing indicator ===== */
+.typing{
+  position: relative;
+  margin: 6px 18px 10px;
+  align-self: flex-start;
+  max-width: 70%;
+  background: rgba(15, 24, 39, .6);
+  border:1px solid rgba(255,255,255,.1);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 8px 12px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.typing.hidden{ display:none; }
+.typing .dots{
+  display:inline-flex; gap:4px;
+}
+.typing .dots i{
+  width:6px; height:6px; border-radius:50%;
+  background:#67e8f9;
+  opacity:.85;
+  animation: blink 1.4s infinite ease-in-out;
+}
+.typing .dots i:nth-child(2){ animation-delay:.2s; }
+.typing .dots i:nth-child(3){ animation-delay:.4s; }
+@keyframes blink{
+  0%, 80%, 100%{ transform: translateY(0); opacity:.5; }
+  40% { transform: translateY(-3px); opacity:1; }
+}
+
+/* ===== Splash Screen (logo zoom-in then fade-out) ===== */
+.splash{
+  position: fixed; inset: 0;
+  background: var(--bg-2);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  animation: splashFade .6s ease forwards;
+  animation-delay: 1.6s;
+}
+.splash-logo{
+  width: 150px;
+  height: auto;
+  animation: splashZoom 1.2s cubic-bezier(.2,.8,.2,1) forwards;
+  filter:
+    drop-shadow(0 8px 24px rgba(0,0,0,.5))
+    drop-shadow(0 0 14px rgba(34,211,238,.25));
+}
+
+@keyframes splashZoom{
+  0%   { transform: scale(.6); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes splashFade{
+  to { opacity: 0; visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .splash { animation:none; }
+  .splash-logo { animation:none; }
+}
+
+/* ===== Responsive ===== */
+@media (max-width:640px){
+  .chat-window{ height:56vh; }
+  .talksy-logo{ width:120px; }
+  .chat-logo{ width:34px; }
+  .heading-logo-tile{ width:44px; height:44px; }
+  .heading-logo{ width:34px; height:34px; }
+}

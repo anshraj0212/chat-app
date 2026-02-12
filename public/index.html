@@ -6,12 +6,12 @@
   <title>Talksy 💬</title>
 
   <!-- Styles -->
-  <link rel="stylesheet" href="style.css" />
-  <!-- Optional favicon -->
-  <!-- <link rel="icon" href="assets/favicon.png" /> -->
+  style.css
 </head>
+
 <body>
-  <!-- ===== Splash (shows first, then fades out) ===== -->
+
+  <!-- ===== Splash Screen (FULLSCREEN) ===== -->
   <div id="splash" class="splash" aria-label="Talksy">
     <img src="assets/talksy-logo.png" alt="Talksy logo" class="splash-logo" />
   </div>
@@ -28,9 +28,10 @@
   <!-- ===== Login (Join) ===== -->
   <main class="wrap">
     <section class="login-box card">
-      <!-- Brand row with mini logo tile + heading (logo sits beside text) -->
+
+      <!-- Brand row with mini logo tile -->
       <div class="brand">
-        <div class="heading-logo-tile" aria-hidden="true">
+        <div class="heading-logo-tile">
           <img src="assets/talksy-logo.png" alt="Talksy logo" class="heading-logo" />
         </div>
         <h1 class="title">💬 Welcome to <span class="brand-text">Talksy</span></h1>
@@ -59,6 +60,7 @@
       <div class="row" role="note">
         <small class="subtitle no-margin">Tip: press <kbd>Enter</kbd> to join</small>
       </div>
+
     </section>
 
     <!-- ===== Chat UI ===== -->
@@ -71,9 +73,9 @@
         <div class="presence" id="presence">Online</div>
       </header>
 
-      <div id="chatWindow" class="chat-window" aria-live="polite" aria-relevant="additions"></div>
+      <div id="chatWindow" class="chat-window" aria-live="polite"></div>
 
-      <!-- Typing indicator (shows “<name> is typing …”) -->
+      <!-- Typing indicator -->
       <div id="typingIndicator" class="typing hidden" aria-live="polite">
         <span id="typingText"><strong>Someone</strong> is typing</span>
         <span class="dots"><i></i><i></i><i></i></span>
@@ -85,10 +87,12 @@
         <button id="sendBtn" class="btn pill send" type="button" disabled>Send</button>
       </footer>
     </section>
+
   </main>
 
-  <!-- Socket.IO + App scripts -->
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="client.js"></script>
+  <!-- Scripts -->
+  /socket.io/socket.io.js</script>
+  client.js</script>
+
 </body>
 </html>

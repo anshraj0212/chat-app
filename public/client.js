@@ -1,5 +1,4 @@
-// public/client.js
-// Enhanced UX + Typing Indicator + Splash hide
+// client.js (Enhanced UX + Typing Indicator + WhatsApp-style Timestamp + Splash hide)
 const socket = io();
 
 const loginBox = document.querySelector(".login-box");
@@ -12,49 +11,38 @@ const nameInput = document.getElementById("username");
 const receiverInput = document.getElementById("receiver");
 const messageInput = document.getElementById("message");
 
-// Splash elements (NEW)
-const splash = document.getElementById("splash");
-
-// Typing indicator elements
 const typingEl = document.getElementById("typingIndicator");
 const typingTextEl = document.getElementById("typingText");
 
+const splash = document.getElementById("splash");
+
 let username = localStorage.getItem("ansh_name") || "";
 let typingTimeout = null;
-const TYPING_DELAY = 1200; // ms to consider "stopped typing"
+const TYPING_DELAY = 1200;
 
-// ===== Splash handling (NEW) =====
+// ===== Splash =====
 function hideSplash() {
-  if (!splash || splash.dataset.hidden === "1") return;
-  // graceful fade-out; CSS animation already runs, this is JS fallback/skip
-  splash.style.transition = "opacity .4s ease";
+  if (!splash) return;
   splash.style.opacity = "0";
   setTimeout(() => {
     splash.style.display = "none";
-    splash.setAttribute("data-hidden", "1");
-    // Focus the name field right after splash
     nameInput?.focus();
-  }, 420);
+  }, 400);
 }
 
 window.addEventListener("load", () => {
-  if (!splash) return;
-  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // Match total splash duration (~2.2s) unless reduced-motion
-  setTimeout(hideSplash, prefersReducedMotion ? 300 : 2200);
-  // Let user click/tap to skip the splash immediately
+  setTimeout(hideSplash, 2200);
   splash.addEventListener("click", hideSplash);
 });
 
-// ===== Init states =====
+// Initial Form states
 if (username) nameInput.value = username;
 toggleJoin();
 toggleSend();
 
-// ===== Join Chat =====
+// Join Chat
 joinBtn.onclick = handleJoin;
 
-// Enter to join
 nameInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") handleJoin();
 });
@@ -70,23 +58,23 @@ function handleJoin() {
   loginBox.classList.add("hidden");
   chatBox.classList.remove("hidden");
 
-  addMessage(`✅ Logged in as ${username}`, { meta: true });
-  receiverInput?.focus();
+  addMessage(`Logged in as ${username}`, { meta: true });
+  receiverInput.focus();
 
-  // Confetti burst for delight
   confettiBurst(120);
 }
 
 function toggleJoin() {
-  const ok = (nameInput.value || "").trim().length >= 2;
-  joinBtn.disabled = !ok;
+  joinBtn.disabled = (nameInput.value || "").trim().length < 2;
 }
 
-// ===== Send message (button or Enter) =====
+// Send message
 sendBtn.onclick = sendMessage;
+
 messageInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendMessage();
 });
+
 messageInput.addEventListener("input", () => {
   toggleSend();
   emitTyping();
@@ -96,17 +84,23 @@ function toggleSend() {
   sendBtn.disabled = (messageInput.value || "").trim().length === 0;
 }
 
-// ===== Send message function =====
 function sendMessage() {
-  const receiver = (receiverInput.value || "").trim();
-  const message = (messageInput.value || "").trim();
+  const receiver = receiverInput.value.trim();
+  const message = messageInput.value.trim();
 
   if (!receiver || !message) return;
 
-  socket.emit("privateMessage", { sender: username, receiver, message });
-  addMessage(`You → ${receiver}: ${message}`, { you: true });
+  socket.emit("privateMessage", {
+    sender: username,
+    receiver,
+    message,
+  });
 
-  // Stop typing indicator on send
+  addMessage(`You: ${message}`, {
+    you: true,
+    timestamp: Date.now(),
+  });
+
   socket.emit("stopTyping", { sender: username, receiver });
 
   messageInput.value = "";
@@ -114,79 +108,83 @@ function sendMessage() {
   messageInput.focus();
 }
 
-// ===== Receive incoming message =====
-socket.on("privateMessage", ({ sender, message }) => {
-  addMessage(`${sender}: ${message}`);
-  hideTyping(); // hide indicator when message arrives
+// Receive message
+socket.on("privateMessage", ({ sender, message, timestamp }) => {
+  addMessage(`${sender}: ${message}`, { timestamp });
+  hideTyping();
 });
 
-// ===== (Optional) message history if server supports it =====
-receiverInput?.addEventListener("change", () => {
-  const receiver = (receiverInput.value || "").trim();
+// Load message history
+receiverInput.addEventListener("change", () => {
+  const receiver = receiverInput.value.trim();
   if (receiver) socket.emit("getMessages", { sender: username, receiver });
 });
 
-socket.on("messageHistory", (history = []) => {
+socket.on("messageHistory", (history) => {
   chatWindow.innerHTML = "";
   history.forEach((msg) => {
-    const fromYou = msg.sender === username;
-    const text = fromYou
-      ? `You → ${msg.receiver}: ${msg.message}`
-      : `${msg.sender} → ${msg.receiver}: ${msg.message}`;
-    addMessage(text, { you: fromYou });
+    const isYou = msg.sender === username;
+    addMessage(
+      isYou
+        ? `You: ${msg.message}`
+        : `${msg.sender}: ${msg.message}`,
+      { you: isYou, timestamp: msg.timestamp }
+    );
   });
 });
 
-// ===== Typing indicator: emit while typing, stop after idle =====
+// Typing Indicator
 function emitTyping() {
-  const receiver = (receiverInput.value || "").trim();
+  const receiver = receiverInput.value.trim();
   if (!username || !receiver) return;
 
   socket.emit("typing", { sender: username, receiver });
 
-  // debounce stopTyping after inactivity
   if (typingTimeout) clearTimeout(typingTimeout);
+
   typingTimeout = setTimeout(() => {
     socket.emit("stopTyping", { sender: username, receiver });
   }, TYPING_DELAY);
 }
 
-// ===== Listen for typing from others =====
 socket.on("typing", ({ sender }) => {
-  if (!sender || sender === username) return; // ignore self
+  if (sender === username) return;
   showTyping(sender);
 });
 
 socket.on("stopTyping", ({ sender }) => {
-  if (!sender || sender === username) return; // ignore self
+  if (sender === username) return;
   hideTyping();
 });
 
-// ===== Display message in chat window (safe, styled) =====
+// WhatsApp-style message bubble
 function addMessage(text, opts = {}) {
-  const div = document.createElement("div");
-  div.classList.add("message");
-  if (opts.meta) div.classList.add("meta");
-  if (opts.you) div.classList.add("you");
-  div.textContent = text; // safer than innerHTML
-  chatWindow.appendChild(div);
+  const wrapper = document.createElement("div");
+  wrapper.classList.add("message");
+  if (opts.you) wrapper.classList.add("you");
+
+  const ts = opts.timestamp ? formatTime(opts.timestamp) : formatTime(Date.now());
+
+  wrapper.innerHTML = `
+    <span class="msg-text">${escapeHtml(text)}</span>
+    <span class="msg-time">${ts}</span>
+  `;
+
+  chatWindow.appendChild(wrapper);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-// ===== Typing UI helpers =====
-function showTyping(senderName) {
-  if (!typingEl || !typingTextEl) return;
-  typingTextEl.innerHTML = `<strong>${escapeHtml(senderName)}</strong> is typing`;
-  typingEl.classList.remove("hidden");
-  // keep indicator visible near the bottom
-  chatWindow.scrollTop = chatWindow.scrollHeight;
+// Format timestamp (WhatsApp style)
+function formatTime(ts) {
+  const d = new Date(ts);
+  let hrs = d.getHours();
+  let mins = d.getMinutes().toString().padStart(2, "0");
+  let ampm = hrs >= 12 ? "pm" : "am";
+  hrs = hrs % 12 || 12;
+  return `${hrs}:${mins} ${ampm}`;
 }
 
-function hideTyping() {
-  if (!typingEl) return;
-  typingEl.classList.add("hidden");
-}
-
+// Escape dangerous characters
 function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({
     "&": "&amp;",
@@ -194,37 +192,31 @@ function escapeHtml(str) {
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;",
-  }[s]));
+  })[s]);
 }
 
-// ===== Confetti (CSS-powered, no library) =====
+// Confetti effect
 function confettiBurst(count = 100) {
   const colors = [
-    "#22d3ee", "#67e8f9", "#a5f3fc", "#cffafe",
-    "#06b6d4", "#0891b2", "#e0f2fe", "#ffffff"
+    "#22d3ee",
+    "#67e8f9",
+    "#a5f3fc",
+    "#cffafe",
+    "#06b6d4",
+    "#0891b2",
+    "#e0f2fe",
+    "#ffffff",
   ];
-  const durationMin = 900;
-  const durationMax = 1800;
 
   for (let i = 0; i < count; i++) {
     const s = document.createElement("span");
     s.className = "confetti";
     const size = 6 + Math.random() * 6;
-    const left = Math.random() * 100; // vw
-    const rot = (Math.random() * 360) | 0;
-    const dur = (durationMin + Math.random() * (durationMax - durationMin)) | 0;
-    const delay = (Math.random() * 120) | 0;
-
-    s.style.left = `${left}vw`;
     s.style.width = `${size}px`;
     s.style.height = `${size * 1.6}px`;
-    s.style.background = colors[(Math.random() * colors.length) | 0];
-    s.style.setProperty("--rot", rot + "deg");
-    s.style.animationDuration = `${dur}ms, ${Math.max(700, dur - 400)}ms`;
-    s.style.animationDelay = `${delay}ms, ${delay}ms`;
-    s.style.transform = `translateY(-10px) rotate(${rot}deg)`;
-
+    s.style.left = Math.random() * 100 + "vw";
+    s.style.background = colors[Math.floor(Math.random() * colors.length)];
     document.body.appendChild(s);
-    setTimeout(() => s.remove(), dur + delay + 150);
+    setTimeout(() => s.remove(), 2000);
   }
 }

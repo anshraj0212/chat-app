@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Talksy 💬</title>
 
-  <!-- Styles (THIS was broken in your file) -->
+  <!-- Styles -->
   <link rel="stylesheet" href="style.css" />
 </head>
 
@@ -13,10 +13,10 @@
 
   <!-- ===== Splash Screen ===== -->
   <div id="splash" class="splash">
-    <img src="assets/talksy-logo.png" class="splash-logo" />
+    <img src="assets/talksy-logo.png" class="splash-logo" alt="Talksy" />
   </div>
 
-  <!-- ===== Background layers ===== -->
+  <!-- ===== Background ===== -->
   <div class="bg">
     <div class="mesh"></div>
     <div class="blob b1"></div>
@@ -25,34 +25,47 @@
     <div class="grain"></div>
   </div>
 
-  <!-- ===== Main Content ===== -->
+  <!-- ===== Login Page ===== -->
   <main class="wrap">
-
-    <!-- Login box -->
     <section class="login-box card">
+
       <div class="brand">
         <div class="heading-logo-tile">
           <img src="assets/talksy-logo.png" class="heading-logo" />
         </div>
-        <h1 class="title">💬 Welcome to <span class="brand-text">Talksy</span></h1>
+        <h1 class="title">
+          💬 Welcome to <span class="brand-text">Talksy</span>
+        </h1>
       </div>
 
-      <p class="subtitle">Private one‑to‑one. No sign‑up. Vibe in.</p>
+      <p class="subtitle">Private one-to-one. No sign-up. Vibe in.</p>
 
       <div class="field">
-        <input type="text" id="username" class="input pill"
-        placeholder="Enter your name" minlength="2" autofocus />
+        <input
+          type="text"
+          id="username"
+          class="input pill"
+          placeholder="Enter your name"
+          minlength="2"
+          maxlength="24"
+          autofocus
+        />
       </div>
 
-      <button id="joinBtn" class="btn pill" disabled>Join Chat</button>
+      <button id="joinBtn" class="btn pill" type="button" disabled>
+        Join Chat
+      </button>
 
       <div class="row">
-        <small class="subtitle no-margin">Tip: press <kbd>Enter</kbd> to join</small>
+        <small class="subtitle no-margin">
+          Tip: press <kbd>Enter</kbd> to join
+        </small>
       </div>
     </section>
 
-    <!-- Chat box -->
+    <!-- ===== Chat UI ===== -->
     <section class="chat-box hidden card-lg">
+
       <header class="chat-header">
         <div class="brand small">
           <img src="assets/talksy-logo.png" class="chat-logo" />
@@ -63,6 +76,7 @@
 
       <div id="chatWindow" class="chat-window"></div>
 
+      <!-- Typing indicator -->
       <div id="typingIndicator" class="typing hidden">
         <span id="typingText"><strong>Someone</strong> is typing</span>
         <span class="dots"><i></i><i></i><i></i></span>
@@ -71,10 +85,10 @@
       <footer class="chat-input">
         <input type="text" id="receiver" class="input pill" placeholder="Receiver name" />
         <input type="text" id="message" class="input pill" placeholder="Type a message…" />
-        <button id="sendBtn" class="btn pill send" disabled>Send</button>
+        <button id="sendBtn" class="btn pill send" type="button" disabled>Send</button>
       </footer>
-    </section>
 
+    </section>
   </main>
 
   <!-- Scripts -->

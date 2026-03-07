@@ -157,7 +157,7 @@ socket.on("stopTyping", ({ sender }) => {
   hideTyping();
 });
 
-// WhatsApp-style message bubble
+// WhatsApp-style bubble with shiny pink timestamp
 function addMessage(text, opts = {}) {
   const wrapper = document.createElement("div");
   wrapper.classList.add("message");
@@ -173,7 +173,6 @@ function addMessage(text, opts = {}) {
   chatWindow.appendChild(wrapper);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
-
 // Format timestamp (WhatsApp style)
 function formatTime(ts) {
   const d = new Date(ts);

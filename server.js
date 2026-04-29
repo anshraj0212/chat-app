@@ -14,8 +14,15 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, "public")));
 
 // === Connect to MongoDB ===
+const mongoUri = process.env.MONGODB_URI;
+
+if (!mongoUri) {
+  console.error("MONGODB_URI environment variable is required.");
+  process.exit(1);
+}
+
 mongoose
-  .connect("mongodb+srv://rajansh2004:anshraj02122004@cluster0.kczmgcv.mongodb.net/?appName=Cluster0")
+  .connect(mongoUri)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.log("❌ MongoDB connection error:", err));
 

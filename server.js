@@ -8,7 +8,9 @@ const mongoose = require("mongoose");
 // === Initialize Express and Server ===
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  maxHttpBufferSize: 5e6,
+});
 
 // === Serve frontend from /public ===
 app.use(express.static(path.join(__dirname, "public")));
@@ -30,7 +32,10 @@ mongoose
 const messageSchema = new mongoose.Schema({
   sender: String,
   receiver: String,
-  message: String,
+  message: { type: String, default: "" },
+  type: { type: String, enum: ["text", "voice"], default: "text" },
+  audio: String,
+  mimeType: String,
   timestamp: { type: Date, default: Date.now },
 });
 
@@ -50,16 +55,30 @@ io.on("connection", (socket) => {
   });
 
   // Private Message
-  socket.on("privateMessage", async ({ sender, receiver, message }) => {
+  socket.on("privateMessage", async ({ sender, receiver, message, type = "text", audio, mimeType }) => {
     const receiverId = users[receiver];
+    const isVoice = type === "voice";
 
-    const msg = new Message({ sender, receiver, message });
+    if (isVoice && (!audio || !mimeType)) return;
+    if (!isVoice && !message) return;
+
+    const msg = new Message({
+      sender,
+      receiver,
+      message: isVoice ? "" : message,
+      type: isVoice ? "voice" : "text",
+      audio: isVoice ? audio : undefined,
+      mimeType: isVoice ? mimeType : undefined,
+    });
     await msg.save();
 
     if (receiverId) {
       io.to(receiverId).emit("privateMessage", {
         sender,
-        message,
+        message: msg.message,
+        type: msg.type,
+        audio: msg.audio,
+        mimeType: msg.mimeType,
         timestamp: msg.timestamp,
       });
     } else {

@@ -10,6 +10,7 @@ const chatWindow = document.getElementById("chatWindow");
 const nameInput = document.getElementById("username");
 const receiverInput = document.getElementById("receiver");
 const messageInput = document.getElementById("message");
+const recordBtn = document.getElementById("recordBtn");
 
 const typingEl = document.getElementById("typingIndicator");
 const typingTextEl = document.getElementById("typingText");
@@ -18,6 +19,9 @@ const splash = document.getElementById("splash");
 
 let username = localStorage.getItem("ansh_name") || "";
 let typingTimeout = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
 const TYPING_DELAY = 1200;
 
 // ===== Splash =====
@@ -39,6 +43,7 @@ window.addEventListener("load", () => {
 if (username) nameInput.value = username;
 toggleJoin();
 toggleSend();
+toggleRecord();
 
 // Join Chat
 joinBtn.onclick = handleJoin;
@@ -84,6 +89,10 @@ function toggleSend() {
   sendBtn.disabled = (messageInput.value || "").trim().length === 0;
 }
 
+function toggleRecord() {
+  recordBtn.disabled = !receiverInput.value.trim() || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder;
+}
+
 function sendMessage() {
   const receiver = receiverInput.value.trim();
   const message = messageInput.value.trim();
@@ -109,8 +118,12 @@ function sendMessage() {
 }
 
 // Receive message
-socket.on("privateMessage", ({ sender, message, timestamp }) => {
-  addMessage(`${sender}: ${message}`, { timestamp });
+socket.on("privateMessage", ({ sender, message, timestamp, type, audio }) => {
+  if (type === "voice") {
+    addVoiceMessage(audio, { sender, timestamp });
+  } else {
+    addMessage(`${sender}: ${message}`, { timestamp });
+  }
   hideTyping();
 });
 
@@ -118,18 +131,29 @@ socket.on("privateMessage", ({ sender, message, timestamp }) => {
 receiverInput.addEventListener("change", () => {
   const receiver = receiverInput.value.trim();
   if (receiver) socket.emit("getMessages", { sender: username, receiver });
+  toggleRecord();
 });
+
+receiverInput.addEventListener("input", toggleRecord);
 
 socket.on("messageHistory", (history) => {
   chatWindow.innerHTML = "";
   history.forEach((msg) => {
     const isYou = msg.sender === username;
-    addMessage(
-      isYou
-        ? `You: ${msg.message}`
-        : `${msg.sender}: ${msg.message}`,
-      { you: isYou, timestamp: msg.timestamp }
-    );
+    if (msg.type === "voice") {
+      addVoiceMessage(msg.audio, {
+        you: isYou,
+        sender: isYou ? "You" : msg.sender,
+        timestamp: msg.timestamp,
+      });
+    } else {
+      addMessage(
+        isYou
+          ? `You: ${msg.message}`
+          : `${msg.sender}: ${msg.message}`,
+        { you: isYou, timestamp: msg.timestamp }
+      );
+    }
   });
 });
 
@@ -157,11 +181,89 @@ socket.on("stopTyping", ({ sender }) => {
   hideTyping();
 });
 
+recordBtn.addEventListener("click", () => {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+});
+
+async function startRecording() {
+  const receiver = receiverInput.value.trim();
+  if (!receiver) return;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) recordedChunks.push(event.data);
+    };
+    mediaRecorder.onstop = () => sendVoiceMessage(stream);
+    mediaRecorder.start();
+    isRecording = true;
+    recordBtn.textContent = "Stop";
+    recordBtn.classList.add("recording");
+    socket.emit("typing", { sender: username, receiver });
+  } catch (err) {
+    addMessage("System: Microphone permission was blocked.", { meta: true });
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+}
+
+function sendVoiceMessage(stream) {
+  stream.getTracks().forEach((track) => track.stop());
+  isRecording = false;
+  recordBtn.textContent = "Rec";
+  recordBtn.classList.remove("recording");
+
+  const receiver = receiverInput.value.trim();
+  if (!receiver || recordedChunks.length === 0) return;
+
+  const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+  const reader = new FileReader();
+
+  reader.onloadend = () => {
+    const audio = reader.result;
+    socket.emit("privateMessage", {
+      sender: username,
+      receiver,
+      type: "voice",
+      audio,
+      mimeType: blob.type,
+    });
+    addVoiceMessage(audio, {
+      you: true,
+      sender: "You",
+      timestamp: Date.now(),
+    });
+    socket.emit("stopTyping", { sender: username, receiver });
+  };
+
+  reader.readAsDataURL(blob);
+}
+
+function showTyping(sender) {
+  typingTextEl.innerHTML = `<strong>${escapeHtml(sender)}</strong> is typing`;
+  typingEl.classList.remove("hidden");
+}
+
+function hideTyping() {
+  typingEl.classList.add("hidden");
+}
+
 // WhatsApp-style bubble with shiny pink timestamp
 function addMessage(text, opts = {}) {
   const wrapper = document.createElement("div");
   wrapper.classList.add("message");
   if (opts.you) wrapper.classList.add("you");
+  if (opts.meta) wrapper.classList.add("meta");
 
   const ts = opts.timestamp ? formatTime(opts.timestamp) : formatTime(Date.now());
 
@@ -170,6 +272,33 @@ function addMessage(text, opts = {}) {
     <span class="msg-time">${ts}</span>
   `;
 
+  chatWindow.appendChild(wrapper);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function addVoiceMessage(audioSrc, opts = {}) {
+  if (!audioSrc || !audioSrc.startsWith("data:audio/")) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.classList.add("message", "voice-message");
+  if (opts.you) wrapper.classList.add("you");
+
+  const label = document.createElement("span");
+  label.className = "msg-text";
+  label.textContent = `${opts.sender || "Voice"}: Voice message`;
+
+  const audio = document.createElement("audio");
+  audio.controls = true;
+  audio.preload = "metadata";
+  audio.src = audioSrc;
+
+  const time = document.createElement("span");
+  time.className = "msg-time";
+  time.textContent = opts.timestamp ? formatTime(opts.timestamp) : formatTime(Date.now());
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(audio);
+  wrapper.appendChild(time);
   chatWindow.appendChild(wrapper);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }

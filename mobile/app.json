@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Talksy",
+    "slug": "talksy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "talksy",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Allow Talksy to record and send voice messages."
+      }
+    },
+    "android": {
+      "package": "com.talksy.chat",
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Talksy to record and send voice messages.",
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
+        }
+      ]
+    ]
+  }
+}

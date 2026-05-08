@@ -16,6 +16,7 @@ const typingEl = document.getElementById("typingIndicator");
 const typingTextEl = document.getElementById("typingText");
 
 const splash = document.getElementById("splash");
+const motionLayer = document.getElementById("motionLayer");
 
 let username = localStorage.getItem("ansh_name") || "";
 let typingTimeout = null;
@@ -31,10 +32,12 @@ function hideSplash() {
   setTimeout(() => {
     splash.style.display = "none";
     nameInput?.focus();
+    confettiBurst(55);
   }, 400);
 }
 
 window.addEventListener("load", () => {
+  createAmbientMotion();
   setTimeout(hideSplash, 2200);
   splash.addEventListener("click", hideSplash);
 });
@@ -332,6 +335,8 @@ function confettiBurst(count = 100) {
     "#cffafe",
     "#06b6d4",
     "#0891b2",
+    "#f0abfc",
+    "#c084fc",
     "#e0f2fe",
     "#ffffff",
   ];
@@ -343,8 +348,39 @@ function confettiBurst(count = 100) {
     s.style.width = `${size}px`;
     s.style.height = `${size * 1.6}px`;
     s.style.left = Math.random() * 100 + "vw";
+    s.style.setProperty("--drift", `${-45 + Math.random() * 90}vw`);
+    s.style.setProperty("--spin", `${180 + Math.random() * 540}deg`);
+    s.style.animationDuration = `${1.8 + Math.random() * 1.3}s`;
+    s.style.animationDelay = `${Math.random() * 0.18}s`;
     s.style.background = colors[Math.floor(Math.random() * colors.length)];
     document.body.appendChild(s);
-    setTimeout(() => s.remove(), 2000);
+    setTimeout(() => s.remove(), 3400);
+  }
+}
+
+function createAmbientMotion() {
+  if (!motionLayer) return;
+
+  const items = ["Hi", "...", "Yo", "Ping", "Talk", "Now"];
+  const total = window.matchMedia("(max-width: 640px)").matches ? 12 : 20;
+
+  for (let i = 0; i < total; i++) {
+    const token = document.createElement("span");
+    const isBubble = i % 3 !== 0;
+    token.className = isBubble ? "float-token token-bubble" : "float-token token-spark";
+
+    if (isBubble) {
+      token.textContent = items[i % items.length];
+    }
+
+    token.style.left = `${4 + Math.random() * 92}%`;
+    token.style.top = `${8 + Math.random() * 84}%`;
+    token.style.animationDuration = `${12 + Math.random() * 14}s`;
+    token.style.animationDelay = `${Math.random() * -14}s`;
+    token.style.setProperty("--x", `${-36 + Math.random() * 72}px`);
+    token.style.setProperty("--y", `${-42 + Math.random() * 84}px`);
+    token.style.setProperty("--r", `${-10 + Math.random() * 20}deg`);
+
+    motionLayer.appendChild(token);
   }
 }

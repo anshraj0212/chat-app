@@ -44,6 +44,10 @@ const Message = mongoose.model("Message", messageSchema);
 // === Active Users Map ===
 let users = {}; // username: socketId
 
+function emitOnlineUsers() {
+  io.emit("onlineUsers", Object.keys(users));
+}
+
 // === Socket.IO Connection ===
 io.on("connection", (socket) => {
   console.log("🟢 Connected:", socket.id);
@@ -51,6 +55,7 @@ io.on("connection", (socket) => {
   // Register username
   socket.on("register", (username) => {
     users[username] = socket.id;
+    emitOnlineUsers();
     console.log(`👤 ${username} logged in as ${socket.id}`);
   });
 
@@ -102,6 +107,25 @@ io.on("connection", (socket) => {
     socket.emit("messageHistory", history);
   });
 
+  // Delete conversation
+  socket.on("deleteChat", async ({ sender, receiver }) => {
+    if (!sender || !receiver || users[sender] !== socket.id) return;
+
+    await Message.deleteMany({
+      $or: [
+        { sender, receiver },
+        { sender: receiver, receiver: sender },
+      ],
+    });
+
+    socket.emit("chatDeleted", { contact: receiver });
+
+    const receiverId = users[receiver];
+    if (receiverId) {
+      io.to(receiverId).emit("chatDeleted", { contact: sender });
+    }
+  });
+
   // Typing Indicator
   socket.on("typing", ({ sender, receiver }) => {
     const id = users[receiver];
@@ -121,6 +145,7 @@ io.on("connection", (socket) => {
         break;
       }
     }
+    emitOnlineUsers();
     console.log("🔴 Disconnected:", socket.id);
   });
 });

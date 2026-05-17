@@ -22,6 +22,11 @@ const modalError = document.getElementById("modalError");
 const modalCloseBtn = document.getElementById("modalCloseBtn");
 const modalCancelBtn = document.getElementById("modalCancelBtn");
 const modalStartBtn = document.getElementById("modalStartBtn");
+const deleteChatModal = document.getElementById("deleteChatModal");
+const deleteContactName = document.getElementById("deleteContactName");
+const deleteModalCloseBtn = document.getElementById("deleteModalCloseBtn");
+const deleteCancelBtn = document.getElementById("deleteCancelBtn");
+const deleteConfirmBtn = document.getElementById("deleteConfirmBtn");
 const typingEl = document.getElementById("typingIndicator");
 const typingTextEl = document.getElementById("typingText");
 
@@ -38,6 +43,8 @@ let typingTimeout = null;
 let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
+let pendingDeleteContact = "";
+let onlineUsers = new Set();
 const unreadContacts = new Set();
 const TYPING_DELAY = 1200;
 
@@ -91,8 +98,14 @@ sendBtn.addEventListener("click", sendMessage);
 modalCloseBtn.addEventListener("click", closeNewChatModal);
 modalCancelBtn.addEventListener("click", closeNewChatModal);
 modalStartBtn.addEventListener("click", submitNewChatModal);
+deleteModalCloseBtn.addEventListener("click", closeDeleteChatModal);
+deleteCancelBtn.addEventListener("click", closeDeleteChatModal);
+deleteConfirmBtn.addEventListener("click", confirmDeleteChat);
 newChatModal.addEventListener("click", (e) => {
   if (e.target === newChatModal) closeNewChatModal();
+});
+deleteChatModal.addEventListener("click", (e) => {
+  if (e.target === deleteChatModal) closeDeleteChatModal();
 });
 modalReceiverInput.addEventListener("input", () => {
   modalError.classList.add("hidden");
@@ -104,6 +117,9 @@ modalReceiverInput.addEventListener("keydown", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !newChatModal.classList.contains("hidden")) {
     closeNewChatModal();
+  }
+  if (e.key === "Escape" && !deleteChatModal.classList.contains("hidden")) {
+    closeDeleteChatModal();
   }
 });
 recordBtn.addEventListener("click", () => {
@@ -148,6 +164,15 @@ socket.on("privateMessage", ({ sender, message, timestamp, type, audio }) => {
   } else {
     addMessage(`${sender}: ${message}`, { timestamp });
   }
+});
+
+socket.on("onlineUsers", (users = []) => {
+  onlineUsers = new Set(users.map((name) => String(name).toLowerCase()));
+  renderContacts();
+});
+
+socket.on("chatDeleted", ({ contact }) => {
+  removeContact(contact);
 });
 
 socket.on("messageHistory", (history) => {
@@ -228,6 +253,27 @@ function closeNewChatModal() {
   newChatBtn.focus();
 }
 
+function openDeleteChatModal(contact) {
+  pendingDeleteContact = contact;
+  deleteContactName.textContent = contact;
+  deleteChatModal.classList.remove("hidden");
+  setTimeout(() => deleteConfirmBtn.focus(), 50);
+}
+
+function closeDeleteChatModal() {
+  pendingDeleteContact = "";
+  deleteChatModal.classList.add("hidden");
+}
+
+function confirmDeleteChat() {
+  if (!pendingDeleteContact) return;
+
+  const contact = pendingDeleteContact;
+  socket.emit("deleteChat", { sender: username, receiver: contact });
+  removeContact(contact);
+  closeDeleteChatModal();
+}
+
 function showModalError(message) {
   modalError.textContent = message;
   modalError.classList.remove("hidden");
@@ -281,6 +327,30 @@ function addContact(name) {
   renderContacts();
 }
 
+function removeContact(name) {
+  const cleanName = normalizeName(name);
+  if (!cleanName) return;
+
+  contacts = contacts.filter((contact) => contact.toLowerCase() !== cleanName.toLowerCase());
+  for (const contact of [...unreadContacts]) {
+    if (contact.toLowerCase() === cleanName.toLowerCase()) {
+      unreadContacts.delete(contact);
+    }
+  }
+  saveContacts();
+
+  if (activeReceiver.toLowerCase() === cleanName.toLowerCase()) {
+    localStorage.removeItem(ACTIVE_CONTACT_KEY);
+    showNoContactSelected();
+  }
+
+  renderContacts();
+}
+
+function isContactOnline(contact) {
+  return onlineUsers.has(String(contact).toLowerCase());
+}
+
 function renderContacts() {
   contactList.innerHTML = "";
 
@@ -293,29 +363,60 @@ function renderContacts() {
   }
 
   contacts.forEach((contact) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `contact-item${contact === activeReceiver ? " active" : ""}`;
-    button.onclick = () => selectContact(contact);
+    const item = document.createElement("div");
+    item.className = `contact-item${contact === activeReceiver ? " active" : ""}`;
+    item.role = "button";
+    item.tabIndex = 0;
+    item.onclick = () => selectContact(contact);
+    item.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        selectContact(contact);
+      }
+    });
+
+    const avatarWrap = document.createElement("span");
+    avatarWrap.className = "contact-avatar-wrap";
 
     const avatar = document.createElement("span");
     avatar.className = "contact-avatar";
     avatar.textContent = contact[0]?.toUpperCase() || "?";
 
+    avatarWrap.appendChild(avatar);
+
+    if (isContactOnline(contact)) {
+      const online = document.createElement("span");
+      online.className = "online-dot";
+      online.title = "Online";
+      avatarWrap.appendChild(online);
+    }
+
     const name = document.createElement("span");
     name.className = "contact-name";
     name.textContent = contact;
 
-    button.appendChild(avatar);
-    button.appendChild(name);
+    item.appendChild(avatarWrap);
+    item.appendChild(name);
 
     if (unreadContacts.has(contact)) {
       const unread = document.createElement("span");
       unread.className = "unread-dot";
-      button.appendChild(unread);
+      item.appendChild(unread);
     }
 
-    contactList.appendChild(button);
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "contact-delete";
+    deleteBtn.textContent = "x";
+    deleteBtn.title = "Delete chat";
+    deleteBtn.setAttribute("aria-label", `Delete chat with ${contact}`);
+    deleteBtn.onclick = (e) => {
+      e.stopPropagation();
+      openDeleteChatModal(contact);
+    };
+
+    item.appendChild(deleteBtn);
+    contactList.appendChild(item);
   });
 }
 

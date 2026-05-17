@@ -47,6 +47,7 @@ if (username) nameInput.value = username;
 toggleJoin();
 toggleSend();
 toggleRecord();
+resizeMessageInput();
 
 // Join Chat
 joinBtn.onclick = handleJoin;
@@ -80,11 +81,15 @@ function toggleJoin() {
 sendBtn.onclick = sendMessage;
 
 messageInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") sendMessage();
+  if (e.key === "Enter" && (e.ctrlKey || e.shiftKey)) {
+    e.preventDefault();
+    sendMessage();
+  }
 });
 
 messageInput.addEventListener("input", () => {
   toggleSend();
+  resizeMessageInput();
   emitTyping();
 });
 
@@ -94,6 +99,11 @@ function toggleSend() {
 
 function toggleRecord() {
   recordBtn.disabled = !receiverInput.value.trim() || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder;
+}
+
+function resizeMessageInput() {
+  messageInput.style.height = "auto";
+  messageInput.style.height = `${Math.min(messageInput.scrollHeight, 120)}px`;
 }
 
 function sendMessage() {
@@ -117,6 +127,7 @@ function sendMessage() {
 
   messageInput.value = "";
   toggleSend();
+  resizeMessageInput();
   messageInput.focus();
 }
 

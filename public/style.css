@@ -295,6 +295,18 @@ body{
 
 .chat-input #receiver{ flex: 0 1 210px; }
 .chat-input #message{ flex: 1 1 auto; }
+.message-input{
+  min-height: 58px;
+  max-height: 120px;
+  resize: none;
+  overflow-y: auto;
+  border-radius: 28px;
+  line-height: 1.4;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #2a3a48 transparent;
+}
 .chat-input .send,
 .chat-input .record{
   width: auto;

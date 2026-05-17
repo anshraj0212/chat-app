@@ -16,6 +16,12 @@ const chatSubtitle = document.getElementById("chatSubtitle");
 
 const nameInput = document.getElementById("username");
 const messageInput = document.getElementById("message");
+const newChatModal = document.getElementById("newChatModal");
+const modalReceiverInput = document.getElementById("modalReceiverInput");
+const modalError = document.getElementById("modalError");
+const modalCloseBtn = document.getElementById("modalCloseBtn");
+const modalCancelBtn = document.getElementById("modalCancelBtn");
+const modalStartBtn = document.getElementById("modalStartBtn");
 const typingEl = document.getElementById("typingIndicator");
 const typingTextEl = document.getElementById("typingText");
 
@@ -82,6 +88,24 @@ nameInput.addEventListener("input", toggleJoin);
 newChatBtn.addEventListener("click", startNewChat);
 changeUserBtn.addEventListener("click", changeUser);
 sendBtn.addEventListener("click", sendMessage);
+modalCloseBtn.addEventListener("click", closeNewChatModal);
+modalCancelBtn.addEventListener("click", closeNewChatModal);
+modalStartBtn.addEventListener("click", submitNewChatModal);
+newChatModal.addEventListener("click", (e) => {
+  if (e.target === newChatModal) closeNewChatModal();
+});
+modalReceiverInput.addEventListener("input", () => {
+  modalError.classList.add("hidden");
+});
+modalReceiverInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitNewChatModal();
+  if (e.key === "Escape") closeNewChatModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !newChatModal.classList.contains("hidden")) {
+    closeNewChatModal();
+  }
+});
 recordBtn.addEventListener("click", () => {
   if (isRecording) {
     stopRecording();
@@ -193,17 +217,39 @@ function changeUser() {
 }
 
 function startNewChat() {
-  const contactName = window.prompt("Enter the receiver name");
-  const cleanName = normalizeName(contactName);
+  modalReceiverInput.value = "";
+  modalError.classList.add("hidden");
+  newChatModal.classList.remove("hidden");
+  setTimeout(() => modalReceiverInput.focus(), 50);
+}
 
-  if (!cleanName) return;
+function closeNewChatModal() {
+  newChatModal.classList.add("hidden");
+  newChatBtn.focus();
+}
+
+function showModalError(message) {
+  modalError.textContent = message;
+  modalError.classList.remove("hidden");
+}
+
+function submitNewChatModal() {
+  const cleanName = normalizeName(modalReceiverInput.value);
+
+  if (!cleanName) {
+    showModalError("Please enter a receiver name.");
+    modalReceiverInput.focus();
+    return;
+  }
   if (cleanName.toLowerCase() === username.toLowerCase()) {
-    window.alert("Choose another user's name.");
+    showModalError("Choose another user's name.");
+    modalReceiverInput.focus();
     return;
   }
 
   addContact(cleanName);
   selectContact(cleanName);
+  closeNewChatModal();
   messageInput.focus();
 }
 

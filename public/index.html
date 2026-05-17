@@ -95,6 +95,34 @@
     </section>
   </main>
 
+  <div id="newChatModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="newChatTitle">
+    <div class="modal-card">
+      <button id="modalCloseBtn" class="modal-close" type="button" aria-label="Close">x</button>
+
+      <div class="modal-mark">
+        <img src="assets/talksy-logo.png" alt="" />
+      </div>
+
+      <h2 id="newChatTitle" class="modal-title">Start a new chat</h2>
+      <p class="modal-copy">Enter your friend's Talksy name once. It will stay in your recent chats.</p>
+
+      <label class="modal-label" for="modalReceiverInput">Receiver name</label>
+      <input
+        type="text"
+        id="modalReceiverInput"
+        class="input modal-input"
+        placeholder="e.g. ansh"
+        maxlength="24"
+      />
+      <p id="modalError" class="modal-error hidden"></p>
+
+      <div class="modal-actions">
+        <button id="modalCancelBtn" class="ghost-btn modal-secondary" type="button">Cancel</button>
+        <button id="modalStartBtn" class="btn pill modal-primary" type="button">Start Chat</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
 </body>

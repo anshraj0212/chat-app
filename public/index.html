@@ -3,20 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Talksy 💬</title>
-
-  <!-- Styles -->
+  <title>Talksy</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
-
-  <!-- ===== Splash Screen ===== -->
   <div id="splash" class="splash">
     <img src="assets/talksy-logo.png" class="splash-logo" alt="Talksy" />
   </div>
 
-  <!-- ===== Background ===== -->
   <div class="bg">
     <div class="mesh"></div>
     <div class="blob b1"></div>
@@ -28,17 +23,13 @@
     <div class="grain"></div>
   </div>
 
-  <!-- ===== Login Page ===== -->
   <main class="wrap">
     <section class="login-box card">
-
       <div class="brand">
         <div class="heading-logo-tile">
-          <img src="assets/talksy-logo.png" class="heading-logo" />
+          <img src="assets/talksy-logo.png" class="heading-logo" alt="" />
         </div>
-        <h1 class="title">
-          💬 Welcome to <span class="brand-text">Talksy</span>
-        </h1>
+        <h1 class="title">Welcome to <span class="brand-text">Talksy</span></h1>
       </div>
 
       <p class="subtitle">Private one-to-one. No sign-up. Vibe in.</p>
@@ -55,49 +46,56 @@
         />
       </div>
 
-      <button id="joinBtn" class="btn pill" type="button" disabled>
-        Join Chat
-      </button>
+      <button id="joinBtn" class="btn pill" type="button" disabled>Join Chat</button>
 
       <div class="row">
-        <small class="subtitle no-margin">
-          Tip: press <kbd>Enter</kbd> to join
-        </small>
+        <small class="subtitle no-margin">Tip: press <kbd>Enter</kbd> to join</small>
       </div>
     </section>
 
-    <!-- ===== Chat UI ===== -->
     <section class="chat-box hidden card-lg">
-
-      <header class="chat-header">
-        <div class="brand small">
-          <img src="assets/talksy-logo.png" class="chat-logo" />
-          <h3 class="chat-title">Talksy 💬</h3>
+      <aside class="contacts-panel">
+        <div class="contacts-head">
+          <div class="brand small">
+            <img src="assets/talksy-logo.png" class="chat-logo" alt="" />
+            <div>
+              <h3 class="chat-title">Talksy</h3>
+              <span id="currentUser" class="current-user"></span>
+            </div>
+          </div>
+          <button id="changeUserBtn" class="ghost-btn" type="button">Change user</button>
         </div>
-        <div class="presence" id="presence">Online</div>
-      </header>
 
-      <div id="chatWindow" class="chat-window"></div>
+        <button id="newChatBtn" class="btn pill new-chat" type="button">New Chat</button>
+        <div id="contactList" class="contact-list"></div>
+      </aside>
 
-      <!-- Typing indicator -->
-      <div id="typingIndicator" class="typing hidden">
-        <span id="typingText"><strong>Someone</strong> is typing</span>
-        <span class="dots"><i></i><i></i><i></i></span>
-      </div>
+      <section class="conversation-panel">
+        <header class="chat-header">
+          <div>
+            <h3 id="chatTitle" class="chat-title">Select a chat</h3>
+            <p id="chatSubtitle" class="chat-subtitle">Choose a recent contact or start a new chat.</p>
+          </div>
+          <div class="presence" id="presence">Online</div>
+        </header>
 
-      <footer class="chat-input">
-        <input type="text" id="receiver" class="input pill" placeholder="Receiver name" />
-        <textarea id="message" class="input message-input" placeholder="Type a message…" rows="1"></textarea>
-        <button id="recordBtn" class="btn pill record" type="button" disabled>Rec</button>
-        <button id="sendBtn" class="btn pill send" type="button" disabled>Send</button>
-      </footer>
+        <div id="chatWindow" class="chat-window"></div>
 
+        <div id="typingIndicator" class="typing hidden">
+          <span id="typingText"><strong>Someone</strong> is typing</span>
+          <span class="dots"><i></i><i></i><i></i></span>
+        </div>
+
+        <footer class="chat-input">
+          <textarea id="message" class="input message-input" placeholder="Type a message..." rows="1" disabled></textarea>
+          <button id="recordBtn" class="btn pill record" type="button" disabled>Rec</button>
+          <button id="sendBtn" class="btn pill send" type="button" disabled>Send</button>
+        </footer>
+      </section>
     </section>
   </main>
 
-  <!-- Scripts -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
-
 </body>
 </html>

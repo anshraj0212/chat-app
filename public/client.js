@@ -7,6 +7,7 @@ const sendBtn = document.getElementById("sendBtn");
 const recordBtn = document.getElementById("recordBtn");
 const newChatBtn = document.getElementById("newChatBtn");
 const changeUserBtn = document.getElementById("changeUserBtn");
+const notificationBtn = document.getElementById("notificationBtn");
 
 const chatWindow = document.getElementById("chatWindow");
 const contactList = document.getElementById("contactList");
@@ -91,6 +92,7 @@ joinBtn.onclick = () => {
   username = (nameInput.value || "").trim();
   if (username.length < 2) return;
   enterChat({ celebrate: true });
+  requestNotificationPermission();
 };
 
 nameInput.addEventListener("keydown", (e) => {
@@ -100,6 +102,7 @@ nameInput.addEventListener("input", toggleJoin);
 
 newChatBtn.addEventListener("click", startNewChat);
 changeUserBtn.addEventListener("click", changeUser);
+notificationBtn.addEventListener("click", requestNotificationPermission);
 sendBtn.addEventListener("click", sendMessage);
 modalCloseBtn.addEventListener("click", closeNewChatModal);
 modalCancelBtn.addEventListener("click", closeNewChatModal);
@@ -158,6 +161,7 @@ socket.on("privateMessage", ({ sender, message, timestamp, type, audio }) => {
     return;
   }
 
+  showNewMessageNotification();
   addContact(sender);
 
   if (sender !== activeReceiver) {
@@ -239,6 +243,7 @@ function enterChat({ celebrate }) {
   currentUserEl.textContent = `Logged in as ${username}`;
   loginBox.classList.add("hidden");
   chatBox.classList.remove("hidden");
+  updateNotificationButton();
 
   renderContacts();
   if (activeReceiver) {
@@ -248,6 +253,70 @@ function enterChat({ celebrate }) {
   }
 
   if (celebrate) confettiBurst(120);
+}
+
+async function requestNotificationPermission() {
+  if (!supportsBrowserNotifications()) {
+    updateNotificationButton();
+    return;
+  }
+
+  try {
+    if (Notification.permission === "default") {
+      await Notification.requestPermission();
+    }
+  } catch {
+    // Some browsers require notification permission from a direct user gesture.
+  }
+
+  updateNotificationButton();
+}
+
+function supportsBrowserNotifications() {
+  return "Notification" in window;
+}
+
+function updateNotificationButton() {
+  if (!notificationBtn) return;
+
+  if (!supportsBrowserNotifications()) {
+    notificationBtn.classList.add("hidden");
+    return;
+  }
+
+  notificationBtn.classList.remove("hidden");
+  notificationBtn.disabled = Notification.permission === "denied";
+
+  if (Notification.permission === "granted") {
+    notificationBtn.textContent = "Alerts on";
+  } else if (Notification.permission === "denied") {
+    notificationBtn.textContent = "Alerts blocked";
+  } else {
+    notificationBtn.textContent = "Enable alerts";
+  }
+}
+
+function showNewMessageNotification() {
+  if (!supportsBrowserNotifications() || Notification.permission !== "granted") return;
+
+  let notification;
+  try {
+    notification = new Notification("Talksy", {
+      body: "You have a new message.",
+      icon: "assets/talksy-logo.png",
+      tag: "talksy-new-message",
+      renotify: true,
+    });
+  } catch {
+    return;
+  }
+
+  notification.onclick = () => {
+    window.focus();
+    notification.close();
+  };
+
+  setTimeout(() => notification.close(), 5000);
 }
 
 function changeUser() {

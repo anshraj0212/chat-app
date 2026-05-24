@@ -408,6 +408,15 @@ body{
 .presence{
   color:#032b2c; background: #67e8f9; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700;
 }
+.chat-status{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:0 0 auto;
+}
+.notification-btn{
+  padding:6px 10px;
+}
 
 .chat-window{
   flex:1;
@@ -824,6 +833,8 @@ body{
     flex:0 0 auto;
   }
   .conversation-panel{ min-height:0; }
+  .chat-header{ align-items:flex-start; }
+  .chat-status{ flex-direction:column; align-items:flex-end; }
   .chat-window{ min-height:240px; }
   .chat-input{ flex-wrap: wrap; }
   .chat-input #message{ min-width: 0; flex-basis: 100%; }

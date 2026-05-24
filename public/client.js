@@ -269,7 +269,6 @@ function confirmDeleteChat() {
   if (!pendingDeleteContact) return;
 
   const contact = pendingDeleteContact;
-  socket.emit("deleteChat", { sender: username, receiver: contact });
   removeContact(contact);
   closeDeleteChatModal();
 }
@@ -408,8 +407,8 @@ function renderContacts() {
     deleteBtn.type = "button";
     deleteBtn.className = "contact-delete";
     deleteBtn.textContent = "x";
-    deleteBtn.title = "Delete chat";
-    deleteBtn.setAttribute("aria-label", `Delete chat with ${contact}`);
+    deleteBtn.title = "Remove chat from list";
+    deleteBtn.setAttribute("aria-label", `Remove chat with ${contact} from list`);
     deleteBtn.onclick = (e) => {
       e.stopPropagation();
       openDeleteChatModal(contact);

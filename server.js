@@ -107,23 +107,11 @@ io.on("connection", (socket) => {
     socket.emit("messageHistory", history);
   });
 
-  // Delete conversation
-  socket.on("deleteChat", async ({ sender, receiver }) => {
+  // Remove conversation from the sender's UI only. MongoDB history stays saved.
+  socket.on("deleteChat", ({ sender, receiver }) => {
     if (!sender || !receiver || users[sender] !== socket.id) return;
 
-    await Message.deleteMany({
-      $or: [
-        { sender, receiver },
-        { sender: receiver, receiver: sender },
-      ],
-    });
-
     socket.emit("chatDeleted", { contact: receiver });
-
-    const receiverId = users[receiver];
-    if (receiverId) {
-      io.to(receiverId).emit("chatDeleted", { contact: sender });
-    }
   });
 
   // Typing Indicator

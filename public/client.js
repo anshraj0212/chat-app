@@ -5,6 +5,8 @@ const chatBox = document.querySelector(".chat-box");
 const joinBtn = document.getElementById("joinBtn");
 const sendBtn = document.getElementById("sendBtn");
 const recordBtn = document.getElementById("recordBtn");
+const photoBtn = document.getElementById("photoBtn");
+const photoInput = document.getElementById("photoInput");
 const newChatBtn = document.getElementById("newChatBtn");
 const changeUserBtn = document.getElementById("changeUserBtn");
 const notificationBtn = document.getElementById("notificationBtn");
@@ -54,6 +56,10 @@ let confirmingPermanentDelete = false;
 let onlineUsers = new Set();
 const unreadContacts = new Set();
 const TYPING_DELAY = 1200;
+const MAX_PHOTO_DATA_URL_LENGTH = 4_000_000;
+const PHOTO_MAX_SIDE = 1600;
+const PHOTO_QUALITY = 0.82;
+const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function contactStorageKey() {
   return `talksy_contacts_${encodeURIComponent(username)}`;
@@ -137,6 +143,8 @@ nameInput.addEventListener("input", () => {
 newChatBtn.addEventListener("click", startNewChat);
 changeUserBtn.addEventListener("click", changeUser);
 notificationBtn.addEventListener("click", requestNotificationPermission);
+photoBtn.addEventListener("click", () => photoInput.click());
+photoInput.addEventListener("change", sendSelectedPhoto);
 sendBtn.addEventListener("click", sendMessage);
 modalCloseBtn.addEventListener("click", closeNewChatModal);
 modalCancelBtn.addEventListener("click", closeNewChatModal);
@@ -187,7 +195,7 @@ messageInput.addEventListener("input", () => {
   emitTyping();
 });
 
-socket.on("privateMessage", ({ sender, message, timestamp, type, audio }) => {
+socket.on("privateMessage", ({ id, sender, message, timestamp, type, audio, image, fileName, mimeType }) => {
   hideTyping();
 
   if (sender === "System") {
@@ -206,6 +214,15 @@ socket.on("privateMessage", ({ sender, message, timestamp, type, audio }) => {
 
   if (type === "voice") {
     addVoiceMessage(audio, { sender, timestamp });
+  } else if (type === "photo") {
+    addPhotoMessage(image, {
+      id,
+      sender,
+      timestamp,
+      fileName,
+      mimeType,
+      canDownload: true,
+    });
   } else {
     addMessage(`${sender}: ${message}`, { timestamp });
   }
@@ -231,6 +248,10 @@ socket.on("chatDeleteFailed", ({ message }) => {
   addMessage(`System: ${message || "Could not delete this chat."}`, { meta: true });
 });
 
+socket.on("photoCleared", ({ messageId }) => {
+  markPhotoCleared(messageId);
+});
+
 socket.on("messageHistory", (history) => {
   chatWindow.innerHTML = "";
 
@@ -246,6 +267,17 @@ socket.on("messageHistory", (history) => {
         you: isYou,
         sender: isYou ? "You" : msg.sender,
         timestamp: msg.timestamp,
+      });
+    } else if (msg.type === "photo") {
+      addPhotoMessage(msg.image, {
+        id: msg._id,
+        you: isYou,
+        sender: isYou ? "You" : msg.sender,
+        timestamp: msg.timestamp,
+        fileName: msg.fileName,
+        mimeType: msg.mimeType,
+        canDownload: !isYou,
+        cleared: !msg.image,
       });
     } else {
       addMessage(
@@ -656,6 +688,7 @@ function toggleComposer() {
   messageInput.disabled = !hasContact;
   sendBtn.disabled = !hasContact || (messageInput.value || "").trim().length === 0;
   recordBtn.disabled = !hasContact || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder;
+  photoBtn.disabled = !hasContact;
 }
 
 function resizeMessageInput() {
@@ -685,6 +718,97 @@ function sendMessage() {
   toggleComposer();
   resizeMessageInput();
   messageInput.focus();
+}
+
+async function sendSelectedPhoto() {
+  const file = photoInput.files?.[0];
+  photoInput.value = "";
+
+  if (!file || !activeReceiver) return;
+
+  if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
+    addMessage("System: Please choose a JPG, PNG, or WebP photo.", { meta: true });
+    return;
+  }
+
+  photoBtn.disabled = true;
+
+  try {
+    const photo = await preparePhoto(file);
+
+    socket.emit("privateMessage", {
+      sender: username,
+      receiver: activeReceiver,
+      type: "photo",
+      image: photo.image,
+      fileName: photo.fileName,
+      mimeType: photo.mimeType,
+    });
+
+    addContact(activeReceiver);
+    addPhotoMessage(photo.image, {
+      you: true,
+      sender: "You",
+      timestamp: Date.now(),
+      fileName: photo.fileName,
+      mimeType: photo.mimeType,
+    });
+  } catch (err) {
+    addMessage(`System: ${err.message || "Could not send this photo."}`, { meta: true });
+  } finally {
+    toggleComposer();
+  }
+}
+
+async function preparePhoto(file) {
+  const source = await readFileAsDataUrl(file);
+  const img = await loadImage(source);
+  const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(img.width, img.height));
+  const width = Math.max(1, Math.round(img.width * scale));
+  const height = Math.max(1, Math.round(img.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(img, 0, 0, width, height);
+
+  const image = canvas.toDataURL("image/jpeg", PHOTO_QUALITY);
+  if (image.length > MAX_PHOTO_DATA_URL_LENGTH) {
+    throw new Error("This photo is too large. Try a smaller photo.");
+  }
+
+  return {
+    image,
+    mimeType: "image/jpeg",
+    fileName: photoFileName(file.name),
+  };
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read this photo."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Could not open this photo."));
+    img.src = src;
+  });
+}
+
+function photoFileName(name) {
+  const base = normalizeName(String(name || "talksy-photo").replace(/\.[^.]+$/, ""));
+  return `${base || "talksy-photo"}.jpg`;
 }
 
 function emitTyping() {
@@ -815,6 +939,100 @@ function addVoiceMessage(audioSrc, opts = {}) {
   wrapper.appendChild(time);
   chatWindow.appendChild(wrapper);
   chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function addPhotoMessage(imageSrc, opts = {}) {
+  clearChatEmpty();
+
+  const wrapper = document.createElement("div");
+  wrapper.classList.add("message", "photo-message");
+  if (opts.you) wrapper.classList.add("you");
+  if (opts.id) wrapper.dataset.photoId = opts.id;
+
+  const label = document.createElement("span");
+  label.className = "msg-text";
+  label.textContent = `${opts.sender || "Photo"}: Photo`;
+  wrapper.appendChild(label);
+
+  if (opts.cleared || !imageSrc) {
+    const cleared = document.createElement("span");
+    cleared.className = "photo-cleared";
+    cleared.textContent = "Photo downloaded and cleared from storage.";
+    wrapper.appendChild(cleared);
+  } else {
+    const image = document.createElement("img");
+    image.className = "photo-preview";
+    image.src = imageSrc;
+    image.alt = "Shared photo";
+    wrapper.appendChild(image);
+
+    if (opts.canDownload && opts.id) {
+      const downloadBtn = document.createElement("button");
+      downloadBtn.type = "button";
+      downloadBtn.className = "ghost-btn photo-download";
+      downloadBtn.textContent = "Download";
+      downloadBtn.addEventListener("click", () => {
+        downloadReceivedPhoto({
+          id: opts.id,
+          image: imageSrc,
+          fileName: opts.fileName,
+          button: downloadBtn,
+        });
+      });
+      wrapper.appendChild(downloadBtn);
+    }
+  }
+
+  const time = document.createElement("span");
+  time.className = "msg-time";
+  time.textContent = opts.timestamp ? formatTime(opts.timestamp) : formatTime(Date.now());
+
+  wrapper.appendChild(time);
+  chatWindow.appendChild(wrapper);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function downloadReceivedPhoto({ id, image, fileName, button }) {
+  downloadDataUrl(image, fileName || "talksy-photo.jpg");
+  button.disabled = true;
+  button.textContent = "Clearing...";
+
+  socket.emit("photoDownloaded", { messageId: id, receiver: username }, (result = {}) => {
+    if (!result.ok) {
+      button.disabled = false;
+      button.textContent = "Download";
+      addMessage(`System: ${result.message || "Could not clear this photo from storage."}`, { meta: true });
+      return;
+    }
+
+    markPhotoCleared(id);
+  });
+}
+
+function downloadDataUrl(dataUrl, fileName) {
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function markPhotoCleared(messageId) {
+  const wrapper = [...chatWindow.querySelectorAll("[data-photo-id]")]
+    .find((item) => item.dataset.photoId === String(messageId));
+  if (!wrapper) return;
+
+  wrapper.querySelector(".photo-preview")?.remove();
+  wrapper.querySelector(".photo-download")?.remove();
+
+  if (!wrapper.querySelector(".photo-cleared")) {
+    const cleared = document.createElement("span");
+    cleared.className = "photo-cleared";
+    cleared.textContent = "Photo downloaded and cleared from storage.";
+    const time = wrapper.querySelector(".msg-time");
+    wrapper.insertBefore(cleared, time);
+  }
 }
 
 function clearChatEmpty() {

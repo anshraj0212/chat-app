@@ -461,6 +461,30 @@ body{
   width: 100%;
   margin-top: 8px;
 }
+.photo-message{
+  min-width: min(340px, 82%);
+}
+.photo-preview{
+  display:block;
+  width:100%;
+  max-width:360px;
+  max-height:280px;
+  object-fit:cover;
+  margin-top:8px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.12);
+}
+.photo-download{
+  display:inline-flex;
+  justify-content:center;
+  margin-top:10px;
+}
+.photo-cleared{
+  display:block;
+  margin-top:8px;
+  color:var(--muted);
+  font-size:13px;
+}
 
 /* Input bar */
 .chat-input{
@@ -483,13 +507,15 @@ body{
   scrollbar-color: #2a3a48 transparent;
 }
 .chat-input .send,
-.chat-input .record{
+.chat-input .record,
+.chat-input .photo{
   width: auto;
   min-width: 72px;
   flex: 0 0 auto;
   padding-inline: 18px;
 }
-.chat-input .record{
+.chat-input .record,
+.chat-input .photo{
   color: #e6f6ff;
   background: rgba(15, 24, 39, .72);
   border: 1px solid rgba(255,255,255,.16);
@@ -839,12 +865,14 @@ body{
   .chat-input{ flex-wrap: wrap; }
   .chat-input #message{ min-width: 0; flex-basis: 100%; }
   .chat-input .send,
-  .chat-input .record{ min-width: 64px; padding-inline: 14px; }
+  .chat-input .record,
+  .chat-input .photo{ min-width: 64px; padding-inline: 14px; }
   .modal-card{ padding:22px; }
   .modal-actions{ flex-direction:column-reverse; }
   .modal-secondary,
   .modal-primary{ width:100%; }
-  .voice-message{ min-width: min(280px, 82vw); }
+  .voice-message,
+  .photo-message{ min-width: min(280px, 82vw); }
   .talksy-logo{ width:120px; }
   .chat-logo{ width:34px; }
   .heading-logo-tile{ width:44px; height:44px; }

@@ -9,8 +9,11 @@ const mongoose = require("mongoose");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  maxHttpBufferSize: 5e6,
+  maxHttpBufferSize: 8e6,
 });
+
+const MAX_PHOTO_DATA_URL_LENGTH = 4_000_000;
+const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 // === Serve frontend from /public ===
 app.use(express.static(path.join(__dirname, "public")));
@@ -33,9 +36,12 @@ const messageSchema = new mongoose.Schema({
   sender: String,
   receiver: String,
   message: { type: String, default: "" },
-  type: { type: String, enum: ["text", "voice"], default: "text" },
+  type: { type: String, enum: ["text", "voice", "photo"], default: "text" },
   audio: String,
+  image: String,
+  fileName: String,
   mimeType: String,
+  photoDownloadedAt: Date,
   timestamp: { type: Date, default: Date.now },
 });
 
@@ -46,6 +52,13 @@ let users = {}; // exact username: socketId
 
 function cleanUserName(name) {
   return String(name || "").trim().replace(/\s+/g, " ");
+}
+
+function isAllowedPhoto(image, mimeType) {
+  return ALLOWED_PHOTO_TYPES.has(mimeType)
+    && typeof image === "string"
+    && image.length <= MAX_PHOTO_DATA_URL_LENGTH
+    && image.startsWith(`data:${mimeType};base64,`);
 }
 
 function emitOnlineUsers() {
@@ -81,34 +94,41 @@ io.on("connection", (socket) => {
   });
 
   // Private Message
-  socket.on("privateMessage", async ({ sender, receiver, message, type = "text", audio, mimeType }) => {
+  socket.on("privateMessage", async ({ sender, receiver, message, type = "text", audio, image, fileName, mimeType }) => {
     const senderName = cleanUserName(sender);
     if (users[senderName] !== socket.id) return;
 
     const receiverName = cleanUserName(receiver);
     const receiverId = users[receiverName];
     const isVoice = type === "voice";
+    const isPhoto = type === "photo";
 
     if (!receiverName) return;
     if (isVoice && (!audio || !mimeType)) return;
-    if (!isVoice && !message) return;
+    if (isPhoto && !isAllowedPhoto(image, mimeType)) return;
+    if (!isVoice && !isPhoto && !message) return;
 
     const msg = new Message({
       sender: senderName,
       receiver: receiverName,
-      message: isVoice ? "" : message,
-      type: isVoice ? "voice" : "text",
+      message: isVoice || isPhoto ? "" : message,
+      type: isVoice ? "voice" : isPhoto ? "photo" : "text",
       audio: isVoice ? audio : undefined,
-      mimeType: isVoice ? mimeType : undefined,
+      image: isPhoto ? image : undefined,
+      fileName: isPhoto ? cleanUserName(fileName).slice(0, 80) || "talksy-photo" : undefined,
+      mimeType: isVoice || isPhoto ? mimeType : undefined,
     });
     await msg.save();
 
     if (receiverId) {
       io.to(receiverId).emit("privateMessage", {
+        id: msg._id.toString(),
         sender: senderName,
         message: msg.message,
         type: msg.type,
         audio: msg.audio,
+        image: msg.image,
+        fileName: msg.fileName,
         mimeType: msg.mimeType,
         timestamp: msg.timestamp,
       });
@@ -134,6 +154,48 @@ io.on("connection", (socket) => {
     }).sort({ timestamp: 1 });
 
     socket.emit("messageHistory", history);
+  });
+
+  // Clear photo data after the receiver downloads it.
+  socket.on("photoDownloaded", async ({ messageId, receiver }, done = () => {}) => {
+    const cleanReceiver = cleanUserName(receiver);
+    if (users[cleanReceiver] !== socket.id || !mongoose.Types.ObjectId.isValid(messageId)) {
+      done({ ok: false, message: "Could not verify this download." });
+      return;
+    }
+
+    try {
+      const msg = await Message.findOne({
+        _id: messageId,
+        receiver: cleanReceiver,
+        type: "photo",
+      });
+
+      if (!msg || !msg.image) {
+        done({ ok: false, message: "This photo is no longer stored." });
+        return;
+      }
+
+      await Message.updateOne(
+        { _id: msg._id },
+        {
+          $unset: { image: "" },
+          $set: { photoDownloadedAt: new Date() },
+        }
+      );
+
+      const payload = { messageId: msg._id.toString() };
+      socket.emit("photoCleared", payload);
+      done({ ok: true });
+
+      const senderId = users[msg.sender];
+      if (senderId) {
+        io.to(senderId).emit("photoCleared", payload);
+      }
+    } catch (err) {
+      console.log("Photo cleanup error:", err);
+      done({ ok: false, message: "Could not clear this photo from storage." });
+    }
   });
 
   // Remove conversation from the sender's UI only. MongoDB history stays saved.

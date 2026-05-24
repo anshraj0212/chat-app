@@ -59,6 +59,30 @@ function contactStorageKey() {
   return `talksy_contacts_${username.toLowerCase()}`;
 }
 
+function sameName(a, b) {
+  const left = normalizeName(a).toLowerCase();
+  const right = normalizeName(b).toLowerCase();
+  return Boolean(left && right && left === right);
+}
+
+function findContact(name) {
+  const cleanName = normalizeName(name).toLowerCase();
+  if (!cleanName) return "";
+  return contacts.find((contact) => contact.toLowerCase() === cleanName) || "";
+}
+
+function removeUnread(name) {
+  for (const contact of [...unreadContacts]) {
+    if (sameName(contact, name)) {
+      unreadContacts.delete(contact);
+    }
+  }
+}
+
+function hasUnread(name) {
+  return [...unreadContacts].some((contact) => sameName(contact, name));
+}
+
 function hideSplash() {
   if (!splash) return;
   splash.style.opacity = "0";
@@ -162,10 +186,10 @@ socket.on("privateMessage", ({ sender, message, timestamp, type, audio }) => {
   }
 
   showNewMessageNotification();
-  addContact(sender);
+  const contact = addContact(sender) || sender;
 
-  if (sender !== activeReceiver) {
-    unreadContacts.add(sender);
+  if (!sameName(sender, activeReceiver)) {
+    unreadContacts.add(contact);
     renderContacts();
     return;
   }
@@ -206,7 +230,7 @@ socket.on("messageHistory", (history) => {
   }
 
   history.forEach((msg) => {
-    const isYou = msg.sender === username;
+    const isYou = sameName(msg.sender, username);
     if (msg.type === "voice") {
       addVoiceMessage(msg.audio, {
         you: isYou,
@@ -238,7 +262,7 @@ function enterChat({ celebrate }) {
 
   contacts = loadContacts();
   const savedActive = localStorage.getItem(ACTIVE_CONTACT_KEY);
-  activeReceiver = contacts.includes(savedActive) ? savedActive : contacts[0] || "";
+  activeReceiver = findContact(savedActive) || contacts[0] || "";
 
   currentUserEl.textContent = `Logged in as ${username}`;
   loginBox.classList.add("hidden");
@@ -411,14 +435,14 @@ function submitNewChatModal() {
     modalReceiverInput.focus();
     return;
   }
-  if (cleanName.toLowerCase() === username.toLowerCase()) {
+  if (sameName(cleanName, username)) {
     showModalError("Choose another user's name.");
     modalReceiverInput.focus();
     return;
   }
 
-  addContact(cleanName);
-  selectContact(cleanName);
+  const contact = addContact(cleanName);
+  selectContact(contact);
   closeNewChatModal();
   messageInput.focus();
 }
@@ -430,7 +454,17 @@ function normalizeName(name) {
 function loadContacts() {
   try {
     const saved = JSON.parse(localStorage.getItem(contactStorageKey()) || "[]");
-    return Array.isArray(saved) ? saved.filter(Boolean) : [];
+    if (!Array.isArray(saved)) return [];
+
+    const seen = new Set();
+    return saved.reduce((list, contact) => {
+      const cleanContact = normalizeName(contact);
+      const key = cleanContact.toLowerCase();
+      if (!cleanContact || seen.has(key)) return list;
+      seen.add(key);
+      list.push(cleanContact);
+      return list;
+    }, []);
   } catch {
     return [];
   }
@@ -442,28 +476,26 @@ function saveContacts() {
 
 function addContact(name) {
   const cleanName = normalizeName(name);
-  if (!cleanName) return;
+  if (!cleanName) return "";
 
-  contacts = contacts.filter((contact) => contact.toLowerCase() !== cleanName.toLowerCase());
-  contacts.unshift(cleanName);
+  const displayName = findContact(cleanName) || cleanName;
+  contacts = contacts.filter((contact) => !sameName(contact, displayName));
+  contacts.unshift(displayName);
   contacts = contacts.slice(0, 20);
   saveContacts();
   renderContacts();
+  return displayName;
 }
 
 function removeContact(name) {
   const cleanName = normalizeName(name);
   if (!cleanName) return;
 
-  contacts = contacts.filter((contact) => contact.toLowerCase() !== cleanName.toLowerCase());
-  for (const contact of [...unreadContacts]) {
-    if (contact.toLowerCase() === cleanName.toLowerCase()) {
-      unreadContacts.delete(contact);
-    }
-  }
+  contacts = contacts.filter((contact) => !sameName(contact, cleanName));
+  removeUnread(cleanName);
   saveContacts();
 
-  if (activeReceiver.toLowerCase() === cleanName.toLowerCase()) {
+  if (sameName(activeReceiver, cleanName)) {
     localStorage.removeItem(ACTIVE_CONTACT_KEY);
     showNoContactSelected();
   }
@@ -488,7 +520,7 @@ function renderContacts() {
 
   contacts.forEach((contact) => {
     const item = document.createElement("div");
-    item.className = `contact-item${contact === activeReceiver ? " active" : ""}`;
+    item.className = `contact-item${sameName(contact, activeReceiver) ? " active" : ""}`;
     item.role = "button";
     item.tabIndex = 0;
     item.onclick = () => selectContact(contact);
@@ -522,7 +554,7 @@ function renderContacts() {
     item.appendChild(avatarWrap);
     item.appendChild(name);
 
-    if (unreadContacts.has(contact)) {
+    if (hasUnread(contact)) {
       const unread = document.createElement("span");
       unread.className = "unread-dot";
       item.appendChild(unread);
@@ -545,11 +577,12 @@ function renderContacts() {
 }
 
 function selectContact(contact, opts = {}) {
-  activeReceiver = contact;
-  unreadContacts.delete(contact);
-  if (opts.save !== false) localStorage.setItem(ACTIVE_CONTACT_KEY, contact);
+  const displayContact = findContact(contact) || normalizeName(contact);
+  activeReceiver = displayContact;
+  removeUnread(displayContact);
+  if (opts.save !== false) localStorage.setItem(ACTIVE_CONTACT_KEY, displayContact);
 
-  chatTitle.textContent = `Chatting with ${contact}`;
+  chatTitle.textContent = `Chatting with ${displayContact}`;
   chatSubtitle.textContent = "Messages are private between these two names.";
   chatWindow.innerHTML = "";
   hideTyping();
@@ -557,7 +590,7 @@ function selectContact(contact, opts = {}) {
   resizeMessageInput();
   renderContacts();
 
-  socket.emit("getMessages", { sender: username, receiver: contact });
+  socket.emit("getMessages", { sender: username, receiver: displayContact });
 }
 
 function showNoContactSelected() {

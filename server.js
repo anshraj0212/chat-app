@@ -42,10 +42,30 @@ const messageSchema = new mongoose.Schema({
 const Message = mongoose.model("Message", messageSchema);
 
 // === Active Users Map ===
-let users = {}; // username: socketId
+let users = {}; // normalized username: { socketId, username }
+
+function cleanUserName(name) {
+  return String(name || "").trim().replace(/\s+/g, " ");
+}
+
+function userKey(name) {
+  return cleanUserName(name).toLowerCase();
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function exactNameQuery(name) {
+  return new RegExp(`^${escapeRegex(cleanUserName(name))}$`, "i");
+}
+
+function getOnlineUser(name) {
+  return users[userKey(name)];
+}
 
 function emitOnlineUsers() {
-  io.emit("onlineUsers", Object.keys(users));
+  io.emit("onlineUsers", Object.values(users).map((user) => user.username));
 }
 
 // === Socket.IO Connection ===
@@ -54,22 +74,32 @@ io.on("connection", (socket) => {
 
   // Register username
   socket.on("register", (username) => {
-    users[username] = socket.id;
+    const cleanName = cleanUserName(username);
+    const key = userKey(cleanName);
+    if (!key) return;
+
+    users[key] = { socketId: socket.id, username: cleanName };
     emitOnlineUsers();
     console.log(`👤 ${username} logged in as ${socket.id}`);
   });
 
   // Private Message
   socket.on("privateMessage", async ({ sender, receiver, message, type = "text", audio, mimeType }) => {
-    const receiverId = users[receiver];
+    const senderUser = getOnlineUser(sender);
+    if (!senderUser || senderUser.socketId !== socket.id) return;
+
+    const receiverUser = getOnlineUser(receiver);
+    const receiverName = receiverUser?.username || cleanUserName(receiver);
+    const receiverId = receiverUser?.socketId;
     const isVoice = type === "voice";
 
+    if (!receiverName) return;
     if (isVoice && (!audio || !mimeType)) return;
     if (!isVoice && !message) return;
 
     const msg = new Message({
-      sender,
-      receiver,
+      sender: senderUser.username,
+      receiver: receiverName,
       message: isVoice ? "" : message,
       type: isVoice ? "voice" : "text",
       audio: isVoice ? audio : undefined,
@@ -79,7 +109,7 @@ io.on("connection", (socket) => {
 
     if (receiverId) {
       io.to(receiverId).emit("privateMessage", {
-        sender,
+        sender: senderUser.username,
         message: msg.message,
         type: msg.type,
         audio: msg.audio,
@@ -89,7 +119,7 @@ io.on("connection", (socket) => {
     } else {
       socket.emit("privateMessage", {
         sender: "System",
-        message: `${receiver} is offline.`,
+        message: `${receiverName} is offline.`,
         timestamp: Date.now(),
       });
     }
@@ -97,10 +127,13 @@ io.on("connection", (socket) => {
 
   // Fetch history
   socket.on("getMessages", async ({ sender, receiver }) => {
+    const senderQuery = exactNameQuery(sender);
+    const receiverQuery = exactNameQuery(receiver);
+
     const history = await Message.find({
       $or: [
-        { sender, receiver },
-        { sender: receiver, receiver: sender },
+        { sender: senderQuery, receiver: receiverQuery },
+        { sender: receiverQuery, receiver: senderQuery },
       ],
     }).sort({ timestamp: 1 });
 
@@ -109,28 +142,37 @@ io.on("connection", (socket) => {
 
   // Remove conversation from the sender's UI only. MongoDB history stays saved.
   socket.on("deleteChat", ({ sender, receiver }) => {
-    if (!sender || !receiver || users[sender] !== socket.id) return;
+    const senderUser = getOnlineUser(sender);
+    if (!sender || !receiver || !senderUser || senderUser.socketId !== socket.id) return;
 
     socket.emit("chatDeleted", { contact: receiver });
   });
 
   // Permanently delete conversation from MongoDB for both users.
   socket.on("deleteChatForever", async ({ sender, receiver }) => {
-    if (!sender || !receiver || users[sender] !== socket.id) return;
+    const senderUser = getOnlineUser(sender);
+    if (!sender || !receiver || !senderUser || senderUser.socketId !== socket.id) return;
+
+    const receiverUser = getOnlineUser(receiver);
+    const receiverName = receiverUser?.username || cleanUserName(receiver);
+    if (!receiverName) return;
 
     try {
+      const senderQuery = exactNameQuery(senderUser.username);
+      const receiverQuery = exactNameQuery(receiverName);
+
       await Message.deleteMany({
         $or: [
-          { sender, receiver },
-          { sender: receiver, receiver: sender },
+          { sender: senderQuery, receiver: receiverQuery },
+          { sender: receiverQuery, receiver: senderQuery },
         ],
       });
 
-      socket.emit("chatPermanentlyDeleted", { contact: receiver });
+      socket.emit("chatPermanentlyDeleted", { contact: receiverName });
 
-      const receiverId = users[receiver];
+      const receiverId = receiverUser?.socketId;
       if (receiverId) {
-        io.to(receiverId).emit("chatPermanentlyDeleted", { contact: sender });
+        io.to(receiverId).emit("chatPermanentlyDeleted", { contact: senderUser.username });
       }
     } catch (err) {
       console.log("Permanent chat delete error:", err);
@@ -142,19 +184,29 @@ io.on("connection", (socket) => {
 
   // Typing Indicator
   socket.on("typing", ({ sender, receiver }) => {
-    const id = users[receiver];
-    if (id) io.to(id).emit("typing", { sender });
+    const senderUser = getOnlineUser(sender);
+    const receiverUser = getOnlineUser(receiver);
+    if (receiverUser) {
+      io.to(receiverUser.socketId).emit("typing", {
+        sender: senderUser?.username || cleanUserName(sender),
+      });
+    }
   });
 
   socket.on("stopTyping", ({ sender, receiver }) => {
-    const id = users[receiver];
-    if (id) io.to(id).emit("stopTyping", { sender });
+    const senderUser = getOnlineUser(sender);
+    const receiverUser = getOnlineUser(receiver);
+    if (receiverUser) {
+      io.to(receiverUser.socketId).emit("stopTyping", {
+        sender: senderUser?.username || cleanUserName(sender),
+      });
+    }
   });
 
   // Cleanup on Disconnect
   socket.on("disconnect", () => {
     for (let name in users) {
-      if (users[name] === socket.id) {
+      if (users[name].socketId === socket.id) {
         delete users[name];
         break;
       }

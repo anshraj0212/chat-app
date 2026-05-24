@@ -597,8 +597,18 @@ body{
   color:#fecdd3;
   font-size:13px;
 }
+.delete-warning{
+  margin:0 0 18px;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid rgba(248,113,113,.24);
+  background:rgba(127,29,29,.18);
+  color:#fecdd3;
+  font-size:13px;
+}
 .modal-actions{
   display:flex;
+  flex-wrap:wrap;
   justify-content:flex-end;
   gap:10px;
   margin-top:20px;

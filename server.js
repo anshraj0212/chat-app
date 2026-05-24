@@ -114,6 +114,32 @@ io.on("connection", (socket) => {
     socket.emit("chatDeleted", { contact: receiver });
   });
 
+  // Permanently delete conversation from MongoDB for both users.
+  socket.on("deleteChatForever", async ({ sender, receiver }) => {
+    if (!sender || !receiver || users[sender] !== socket.id) return;
+
+    try {
+      await Message.deleteMany({
+        $or: [
+          { sender, receiver },
+          { sender: receiver, receiver: sender },
+        ],
+      });
+
+      socket.emit("chatPermanentlyDeleted", { contact: receiver });
+
+      const receiverId = users[receiver];
+      if (receiverId) {
+        io.to(receiverId).emit("chatPermanentlyDeleted", { contact: sender });
+      }
+    } catch (err) {
+      console.log("Permanent chat delete error:", err);
+      socket.emit("chatDeleteFailed", {
+        message: "Could not permanently delete this chat. Please try again.",
+      });
+    }
+  });
+
   // Typing Indicator
   socket.on("typing", ({ sender, receiver }) => {
     const id = users[receiver];

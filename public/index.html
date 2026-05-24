@@ -129,14 +129,19 @@
 
       <div class="modal-mark danger-mark">!</div>
 
-      <h2 id="deleteChatTitle" class="modal-title">Remove chat?</h2>
+      <h2 id="deleteChatTitle" class="modal-title">Manage chat</h2>
       <p class="modal-copy">
-        This only removes <strong id="deleteContactName"></strong> from this screen. Messages stay saved for later.
+        <span id="deleteChatCopy">Choose what to do with</span>
+        <strong id="deleteContactName"></strong><span id="deleteChatTail">.</span>
+      </p>
+      <p id="deleteForeverWarning" class="delete-warning hidden">
+        This permanently deletes the messages from MongoDB for both users. This cannot be undone.
       </p>
 
       <div class="modal-actions">
         <button id="deleteCancelBtn" class="ghost-btn modal-secondary" type="button">Cancel</button>
-        <button id="deleteConfirmBtn" class="btn pill modal-primary danger-btn" type="button">Delete</button>
+        <button id="deleteConfirmBtn" class="btn pill modal-primary" type="button">Remove from list</button>
+        <button id="deleteForeverBtn" class="btn pill modal-primary danger-btn" type="button">Delete forever</button>
       </div>
     </div>
   </div>

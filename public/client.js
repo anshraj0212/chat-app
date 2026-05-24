@@ -23,10 +23,15 @@ const modalCloseBtn = document.getElementById("modalCloseBtn");
 const modalCancelBtn = document.getElementById("modalCancelBtn");
 const modalStartBtn = document.getElementById("modalStartBtn");
 const deleteChatModal = document.getElementById("deleteChatModal");
+const deleteChatTitle = document.getElementById("deleteChatTitle");
+const deleteChatCopy = document.getElementById("deleteChatCopy");
 const deleteContactName = document.getElementById("deleteContactName");
+const deleteChatTail = document.getElementById("deleteChatTail");
+const deleteForeverWarning = document.getElementById("deleteForeverWarning");
 const deleteModalCloseBtn = document.getElementById("deleteModalCloseBtn");
 const deleteCancelBtn = document.getElementById("deleteCancelBtn");
 const deleteConfirmBtn = document.getElementById("deleteConfirmBtn");
+const deleteForeverBtn = document.getElementById("deleteForeverBtn");
 const typingEl = document.getElementById("typingIndicator");
 const typingTextEl = document.getElementById("typingText");
 
@@ -44,6 +49,7 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
 let pendingDeleteContact = "";
+let confirmingPermanentDelete = false;
 let onlineUsers = new Set();
 const unreadContacts = new Set();
 const TYPING_DELAY = 1200;
@@ -101,6 +107,7 @@ modalStartBtn.addEventListener("click", submitNewChatModal);
 deleteModalCloseBtn.addEventListener("click", closeDeleteChatModal);
 deleteCancelBtn.addEventListener("click", closeDeleteChatModal);
 deleteConfirmBtn.addEventListener("click", confirmDeleteChat);
+deleteForeverBtn.addEventListener("click", confirmPermanentDeleteChat);
 newChatModal.addEventListener("click", (e) => {
   if (e.target === newChatModal) closeNewChatModal();
 });
@@ -173,6 +180,17 @@ socket.on("onlineUsers", (users = []) => {
 
 socket.on("chatDeleted", ({ contact }) => {
   removeContact(contact);
+});
+
+socket.on("chatPermanentlyDeleted", ({ contact }) => {
+  removeContact(contact);
+  closeDeleteChatModal();
+});
+
+socket.on("chatDeleteFailed", ({ message }) => {
+  deleteConfirmBtn.disabled = false;
+  deleteForeverBtn.disabled = false;
+  addMessage(`System: ${message || "Could not delete this chat."}`, { meta: true });
 });
 
 socket.on("messageHistory", (history) => {
@@ -255,13 +273,17 @@ function closeNewChatModal() {
 
 function openDeleteChatModal(contact) {
   pendingDeleteContact = contact;
-  deleteContactName.textContent = contact;
+  confirmingPermanentDelete = false;
+  updateDeleteChatModal();
   deleteChatModal.classList.remove("hidden");
   setTimeout(() => deleteConfirmBtn.focus(), 50);
 }
 
 function closeDeleteChatModal() {
   pendingDeleteContact = "";
+  confirmingPermanentDelete = false;
+  deleteConfirmBtn.disabled = false;
+  deleteForeverBtn.disabled = false;
   deleteChatModal.classList.add("hidden");
 }
 
@@ -271,6 +293,40 @@ function confirmDeleteChat() {
   const contact = pendingDeleteContact;
   removeContact(contact);
   closeDeleteChatModal();
+}
+
+function confirmPermanentDeleteChat() {
+  if (!pendingDeleteContact) return;
+
+  if (!confirmingPermanentDelete) {
+    confirmingPermanentDelete = true;
+    updateDeleteChatModal();
+    setTimeout(() => deleteForeverBtn.focus(), 50);
+    return;
+  }
+
+  const contact = pendingDeleteContact;
+  deleteConfirmBtn.disabled = true;
+  deleteForeverBtn.disabled = true;
+  socket.emit("deleteChatForever", { sender: username, receiver: contact });
+}
+
+function updateDeleteChatModal() {
+  deleteContactName.textContent = pendingDeleteContact;
+  deleteForeverWarning.classList.toggle("hidden", !confirmingPermanentDelete);
+  deleteConfirmBtn.classList.toggle("hidden", confirmingPermanentDelete);
+
+  if (confirmingPermanentDelete) {
+    deleteChatTitle.textContent = "Delete forever?";
+    deleteChatCopy.textContent = "Permanently delete all messages with";
+    deleteChatTail.textContent = " from MongoDB?";
+    deleteForeverBtn.textContent = "Yes, delete forever";
+  } else {
+    deleteChatTitle.textContent = "Manage chat";
+    deleteChatCopy.textContent = "Choose what to do with";
+    deleteChatTail.textContent = ".";
+    deleteForeverBtn.textContent = "Delete forever";
+  }
 }
 
 function showModalError(message) {

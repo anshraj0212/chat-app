@@ -42,30 +42,14 @@ const messageSchema = new mongoose.Schema({
 const Message = mongoose.model("Message", messageSchema);
 
 // === Active Users Map ===
-let users = {}; // normalized username: { socketId, username }
+let users = {}; // exact username: socketId
 
 function cleanUserName(name) {
   return String(name || "").trim().replace(/\s+/g, " ");
 }
 
-function userKey(name) {
-  return cleanUserName(name).toLowerCase();
-}
-
-function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function exactNameQuery(name) {
-  return new RegExp(`^${escapeRegex(cleanUserName(name))}$`, "i");
-}
-
-function getOnlineUser(name) {
-  return users[userKey(name)];
-}
-
 function emitOnlineUsers() {
-  io.emit("onlineUsers", Object.values(users).map((user) => user.username));
+  io.emit("onlineUsers", Object.keys(users));
 }
 
 // === Socket.IO Connection ===
@@ -73,24 +57,36 @@ io.on("connection", (socket) => {
   console.log("🟢 Connected:", socket.id);
 
   // Register username
-  socket.on("register", (username) => {
+  socket.on("register", (username, done = () => {}) => {
     const cleanName = cleanUserName(username);
-    const key = userKey(cleanName);
-    if (!key) return;
+    if (!cleanName) {
+      done({ ok: false, message: "Please enter a name." });
+      return;
+    }
 
-    users[key] = { socketId: socket.id, username: cleanName };
+    const existingSocketId = users[cleanName];
+    const isNameTaken = existingSocketId
+      && existingSocketId !== socket.id
+      && io.sockets.sockets.has(existingSocketId);
+
+    if (isNameTaken) {
+      done({ ok: false, message: `${cleanName} is already in use.` });
+      return;
+    }
+
+    users[cleanName] = socket.id;
     emitOnlineUsers();
+    done({ ok: true, username: cleanName });
     console.log(`👤 ${username} logged in as ${socket.id}`);
   });
 
   // Private Message
   socket.on("privateMessage", async ({ sender, receiver, message, type = "text", audio, mimeType }) => {
-    const senderUser = getOnlineUser(sender);
-    if (!senderUser || senderUser.socketId !== socket.id) return;
+    const senderName = cleanUserName(sender);
+    if (users[senderName] !== socket.id) return;
 
-    const receiverUser = getOnlineUser(receiver);
-    const receiverName = receiverUser?.username || cleanUserName(receiver);
-    const receiverId = receiverUser?.socketId;
+    const receiverName = cleanUserName(receiver);
+    const receiverId = users[receiverName];
     const isVoice = type === "voice";
 
     if (!receiverName) return;
@@ -98,7 +94,7 @@ io.on("connection", (socket) => {
     if (!isVoice && !message) return;
 
     const msg = new Message({
-      sender: senderUser.username,
+      sender: senderName,
       receiver: receiverName,
       message: isVoice ? "" : message,
       type: isVoice ? "voice" : "text",
@@ -109,7 +105,7 @@ io.on("connection", (socket) => {
 
     if (receiverId) {
       io.to(receiverId).emit("privateMessage", {
-        sender: senderUser.username,
+        sender: senderName,
         message: msg.message,
         type: msg.type,
         audio: msg.audio,
@@ -127,13 +123,13 @@ io.on("connection", (socket) => {
 
   // Fetch history
   socket.on("getMessages", async ({ sender, receiver }) => {
-    const senderQuery = exactNameQuery(sender);
-    const receiverQuery = exactNameQuery(receiver);
+    const cleanSender = cleanUserName(sender);
+    const cleanReceiver = cleanUserName(receiver);
 
     const history = await Message.find({
       $or: [
-        { sender: senderQuery, receiver: receiverQuery },
-        { sender: receiverQuery, receiver: senderQuery },
+        { sender: cleanSender, receiver: cleanReceiver },
+        { sender: cleanReceiver, receiver: cleanSender },
       ],
     }).sort({ timestamp: 1 });
 
@@ -142,37 +138,33 @@ io.on("connection", (socket) => {
 
   // Remove conversation from the sender's UI only. MongoDB history stays saved.
   socket.on("deleteChat", ({ sender, receiver }) => {
-    const senderUser = getOnlineUser(sender);
-    if (!sender || !receiver || !senderUser || senderUser.socketId !== socket.id) return;
+    const cleanSender = cleanUserName(sender);
+    if (!sender || !receiver || users[cleanSender] !== socket.id) return;
 
     socket.emit("chatDeleted", { contact: receiver });
   });
 
   // Permanently delete conversation from MongoDB for both users.
   socket.on("deleteChatForever", async ({ sender, receiver }) => {
-    const senderUser = getOnlineUser(sender);
-    if (!sender || !receiver || !senderUser || senderUser.socketId !== socket.id) return;
+    const cleanSender = cleanUserName(sender);
+    if (!sender || !receiver || users[cleanSender] !== socket.id) return;
 
-    const receiverUser = getOnlineUser(receiver);
-    const receiverName = receiverUser?.username || cleanUserName(receiver);
+    const receiverName = cleanUserName(receiver);
     if (!receiverName) return;
 
     try {
-      const senderQuery = exactNameQuery(senderUser.username);
-      const receiverQuery = exactNameQuery(receiverName);
-
       await Message.deleteMany({
         $or: [
-          { sender: senderQuery, receiver: receiverQuery },
-          { sender: receiverQuery, receiver: senderQuery },
+          { sender: cleanSender, receiver: receiverName },
+          { sender: receiverName, receiver: cleanSender },
         ],
       });
 
       socket.emit("chatPermanentlyDeleted", { contact: receiverName });
 
-      const receiverId = receiverUser?.socketId;
+      const receiverId = users[receiverName];
       if (receiverId) {
-        io.to(receiverId).emit("chatPermanentlyDeleted", { contact: senderUser.username });
+        io.to(receiverId).emit("chatPermanentlyDeleted", { contact: cleanSender });
       }
     } catch (err) {
       console.log("Permanent chat delete error:", err);
@@ -184,29 +176,21 @@ io.on("connection", (socket) => {
 
   // Typing Indicator
   socket.on("typing", ({ sender, receiver }) => {
-    const senderUser = getOnlineUser(sender);
-    const receiverUser = getOnlineUser(receiver);
-    if (receiverUser) {
-      io.to(receiverUser.socketId).emit("typing", {
-        sender: senderUser?.username || cleanUserName(sender),
-      });
-    }
+    const cleanSender = cleanUserName(sender);
+    const receiverId = users[cleanUserName(receiver)];
+    if (receiverId) io.to(receiverId).emit("typing", { sender: cleanSender });
   });
 
   socket.on("stopTyping", ({ sender, receiver }) => {
-    const senderUser = getOnlineUser(sender);
-    const receiverUser = getOnlineUser(receiver);
-    if (receiverUser) {
-      io.to(receiverUser.socketId).emit("stopTyping", {
-        sender: senderUser?.username || cleanUserName(sender),
-      });
-    }
+    const cleanSender = cleanUserName(sender);
+    const receiverId = users[cleanUserName(receiver)];
+    if (receiverId) io.to(receiverId).emit("stopTyping", { sender: cleanSender });
   });
 
   // Cleanup on Disconnect
   socket.on("disconnect", () => {
     for (let name in users) {
-      if (users[name].socketId === socket.id) {
+      if (users[name] === socket.id) {
         delete users[name];
         break;
       }

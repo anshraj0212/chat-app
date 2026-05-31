@@ -678,14 +678,19 @@ body{
   z-index:10002;
   display:grid;
   place-items:center;
-  padding:18px;
+  padding:clamp(18px, 4vmin, 56px);
   background:rgba(2, 6, 23, .88);
   backdrop-filter:blur(10px);
   -webkit-backdrop-filter:blur(10px);
+  overflow:hidden;
 }
 .photo-viewer-image{
-  max-width:100%;
-  max-height:100%;
+  display:block;
+  width:auto;
+  height:auto;
+  max-width:min(92vw, 1120px);
+  max-height:calc(100vh - 120px);
+  max-height:calc(100dvh - 120px);
   object-fit:contain;
   border-radius:12px;
   box-shadow:0 30px 90px rgba(0,0,0,.7);
@@ -1035,6 +1040,9 @@ body{
     padding:8px;
   }
   .photo-viewer-image{
+    max-width:calc(100vw - 16px);
+    max-height:calc(100vh - 72px);
+    max-height:calc(100dvh - 72px);
     border-radius:8px;
   }
   .photo-viewer-close{

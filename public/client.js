@@ -41,11 +41,13 @@ const typingTextEl = document.getElementById("typingText");
 const photoViewer = document.getElementById("photoViewer");
 const photoViewerImage = document.getElementById("photoViewerImage");
 const photoViewerClose = document.getElementById("photoViewerClose");
+const appToast = document.getElementById("appToast");
 
 const splash = document.getElementById("splash");
 const motionLayer = document.getElementById("motionLayer");
 
 const NAME_KEY = "ansh_name";
+const ALERTS_KEY = "talksy_alerts_enabled";
 
 let username = localStorage.getItem(NAME_KEY) || "";
 let contacts = [];
@@ -57,6 +59,7 @@ let isRecording = false;
 let pendingDeleteContact = "";
 let confirmingPermanentDelete = false;
 let onlineUsers = new Set();
+let toastTimeout = null;
 const unreadContacts = new Set();
 const TYPING_DELAY = 1200;
 const MAX_PHOTO_DATA_URL_LENGTH = 10_000_000;
@@ -143,7 +146,7 @@ nameInput.addEventListener("input", () => {
 
 newChatBtn.addEventListener("click", startNewChat);
 changeUserBtn.addEventListener("click", changeUser);
-notificationBtn.addEventListener("click", requestNotificationPermission);
+notificationBtn.addEventListener("click", toggleNotifications);
 photoBtn.addEventListener("click", () => photoInput.click());
 photoInput.addEventListener("change", sendSelectedPhoto);
 sendBtn.addEventListener("click", sendMessage);
@@ -315,7 +318,7 @@ function registerAndEnter({ celebrate }) {
 
     username = result.username || username;
     enterChat({ celebrate });
-    if (celebrate) requestNotificationPermission();
+    if (celebrate) updateNotificationButton();
   });
 }
 
@@ -351,8 +354,31 @@ function showLoginError(message) {
   nameInput.focus();
 }
 
-async function requestNotificationPermission() {
+function alertsEnabled() {
+  return localStorage.getItem(ALERTS_KEY) === "on";
+}
+
+function setAlertsEnabled(enabled) {
+  localStorage.setItem(ALERTS_KEY, enabled ? "on" : "off");
+}
+
+async function toggleNotifications() {
   if (!supportsBrowserNotifications()) {
+    showAppToast("This browser does not support alerts.");
+    updateNotificationButton();
+    return;
+  }
+
+  if (Notification.permission === "denied") {
+    setAlertsEnabled(false);
+    showAppToast("Alerts are blocked in browser settings.");
+    updateNotificationButton();
+    return;
+  }
+
+  if (alertsEnabled()) {
+    setAlertsEnabled(false);
+    showAppToast("Alerts off.");
     updateNotificationButton();
     return;
   }
@@ -363,6 +389,15 @@ async function requestNotificationPermission() {
     }
   } catch {
     // Some browsers require notification permission from a direct user gesture.
+  }
+
+  if (Notification.permission === "granted") {
+    setAlertsEnabled(true);
+    showAppToast("Alerts on.");
+    showNotification("Alerts are on.");
+  } else {
+    setAlertsEnabled(false);
+    showAppToast("Alerts were not allowed.");
   }
 
   updateNotificationButton();
@@ -376,35 +411,49 @@ function updateNotificationButton() {
   if (!notificationBtn) return;
 
   if (!supportsBrowserNotifications()) {
-    notificationBtn.classList.add("hidden");
+    notificationBtn.classList.remove("hidden");
+    notificationBtn.disabled = true;
+    notificationBtn.textContent = "No alerts";
     return;
   }
 
   notificationBtn.classList.remove("hidden");
   notificationBtn.disabled = Notification.permission === "denied";
 
-  if (Notification.permission === "granted") {
+  if (Notification.permission === "granted" && alertsEnabled()) {
     notificationBtn.textContent = "Alerts on";
   } else if (Notification.permission === "denied") {
     notificationBtn.textContent = "Alerts blocked";
   } else {
-    notificationBtn.textContent = "Enable alerts";
+    notificationBtn.textContent = "Alerts off";
   }
 }
 
 function showNewMessageNotification() {
-  if (!supportsBrowserNotifications() || Notification.permission !== "granted") return;
+  if (!alertsEnabled()) return;
 
+  if (!supportsBrowserNotifications() || Notification.permission !== "granted") {
+    showAppToast("You have a new message.");
+    updateNotificationButton();
+    return;
+  }
+
+  if (!showNotification("You have a new message.")) {
+    showAppToast("You have a new message.");
+  }
+}
+
+function showNotification(body) {
   let notification;
   try {
     notification = new Notification("Talksy", {
-      body: "You have a new message.",
+      body,
       icon: "assets/talksy-logo.png",
       tag: "talksy-new-message",
       renotify: true,
     });
   } catch {
-    return;
+    return false;
   }
 
   notification.onclick = () => {
@@ -413,6 +462,19 @@ function showNewMessageNotification() {
   };
 
   setTimeout(() => notification.close(), 5000);
+  return true;
+}
+
+function showAppToast(message) {
+  if (!appToast) return;
+
+  appToast.textContent = message;
+  appToast.classList.remove("hidden");
+
+  if (toastTimeout) clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    appToast.classList.add("hidden");
+  }, 2600);
 }
 
 function changeUser() {

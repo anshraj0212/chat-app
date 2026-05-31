@@ -60,6 +60,7 @@ let pendingDeleteContact = "";
 let confirmingPermanentDelete = false;
 let onlineUsers = new Set();
 let toastTimeout = null;
+let serviceWorkerRegistrationPromise = null;
 const unreadContacts = new Set();
 const TYPING_DELAY = 1200;
 const MAX_PHOTO_DATA_URL_LENGTH = 10_000_000;
@@ -117,6 +118,7 @@ function hideSplash() {
 
 window.addEventListener("load", () => {
   createAmbientMotion();
+  registerServiceWorker();
   if (username) {
     nameInput.value = username;
     registerAndEnter({ celebrate: false });
@@ -334,6 +336,7 @@ function enterChat({ celebrate }) {
   loginBox.classList.add("hidden");
   chatBox.classList.remove("hidden");
   updateNotificationButton();
+  if (alertsEnabled()) syncPushSubscription();
 
   renderContacts();
   if (activeReceiver) {
@@ -363,8 +366,8 @@ function setAlertsEnabled(enabled) {
 }
 
 async function toggleNotifications() {
-  if (!supportsBrowserNotifications()) {
-    showAppToast("This browser does not support alerts.");
+  if (!supportsPushNotifications()) {
+    showAppToast("Install/open Talksy in a supported browser for app alerts.");
     updateNotificationButton();
     return;
   }
@@ -377,6 +380,7 @@ async function toggleNotifications() {
   }
 
   if (alertsEnabled()) {
+    await unsubscribeFromPush();
     setAlertsEnabled(false);
     showAppToast("Alerts off.");
     updateNotificationButton();
@@ -392,9 +396,15 @@ async function toggleNotifications() {
   }
 
   if (Notification.permission === "granted") {
-    setAlertsEnabled(true);
-    showAppToast("Alerts on.");
-    showNotification("Alerts are on.");
+    try {
+      await subscribeToPush();
+      setAlertsEnabled(true);
+      showAppToast("App alerts on.");
+      showNotification("Alerts are on.");
+    } catch (err) {
+      setAlertsEnabled(false);
+      showAppToast(err.message || "Could not turn on app alerts.");
+    }
   } else {
     setAlertsEnabled(false);
     showAppToast("Alerts were not allowed.");
@@ -407,13 +417,17 @@ function supportsBrowserNotifications() {
   return "Notification" in window;
 }
 
+function supportsPushNotifications() {
+  return supportsBrowserNotifications() && "serviceWorker" in navigator && "PushManager" in window;
+}
+
 function updateNotificationButton() {
   if (!notificationBtn) return;
 
-  if (!supportsBrowserNotifications()) {
+  if (!supportsPushNotifications()) {
     notificationBtn.classList.remove("hidden");
     notificationBtn.disabled = true;
-    notificationBtn.textContent = "No alerts";
+    notificationBtn.textContent = "No app alerts";
     return;
   }
 
@@ -432,37 +446,130 @@ function updateNotificationButton() {
 function showNewMessageNotification() {
   if (!alertsEnabled()) return;
 
-  if (!supportsBrowserNotifications() || Notification.permission !== "granted") {
-    showAppToast("You have a new message.");
-    updateNotificationButton();
-    return;
-  }
-
-  if (!showNotification("You have a new message.")) {
+  if (document.visibilityState === "visible") {
     showAppToast("You have a new message.");
   }
 }
 
-function showNotification(body) {
-  let notification;
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return null;
+
+  if (!serviceWorkerRegistrationPromise) {
+    serviceWorkerRegistrationPromise = navigator.serviceWorker
+      .register("/sw.js")
+      .then(() => navigator.serviceWorker.ready)
+      .catch((err) => {
+        console.log("Service worker registration failed:", err);
+        return null;
+      });
+  }
+
+  return serviceWorkerRegistrationPromise;
+}
+
+async function getPushPublicKey() {
+  const res = await fetch("/push/public-key");
+  const result = await res.json();
+
+  if (!res.ok || !result.ok || !result.publicKey) {
+    throw new Error("Push alerts are not ready on the server.");
+  }
+
+  return result.publicKey;
+}
+
+async function subscribeToPush() {
+  if (!username) throw new Error("Log in before enabling alerts.");
+
+  const registration = await registerServiceWorker();
+  if (!registration) throw new Error("App alerts are not supported here.");
+
+  const publicKey = await getPushPublicKey();
+  let subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+  }
+
+  const res = await fetch("/push/subscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, subscription }),
+  });
+
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok || !result.ok) {
+    throw new Error(result.message || "Could not save app alerts.");
+  }
+
+  return subscription;
+}
+
+async function unsubscribeFromPush() {
+  const registration = await registerServiceWorker();
+  if (!registration) return;
+
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) return;
+
+  await fetch("/push/subscribe", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, endpoint: subscription.endpoint }),
+  }).catch(() => {});
+
+  await subscription.unsubscribe().catch(() => {});
+}
+
+async function syncPushSubscription() {
+  if (!supportsPushNotifications() || Notification.permission !== "granted") {
+    updateNotificationButton();
+    return;
+  }
+
   try {
-    notification = new Notification("Talksy", {
+    await subscribeToPush();
+  } catch (err) {
+    console.log("Push sync failed:", err.message || err);
+  } finally {
+    updateNotificationButton();
+  }
+}
+
+async function showNotification(body) {
+  try {
+    const registration = await registerServiceWorker();
+    if (!registration) return false;
+
+    await registration.showNotification("Talksy", {
       body,
       icon: "assets/talksy-logo.png",
+      badge: "assets/talksy-logo.png",
       tag: "talksy-new-message",
       renotify: true,
+      data: { url: "/" },
     });
   } catch {
     return false;
   }
 
-  notification.onclick = () => {
-    window.focus();
-    notification.close();
-  };
-
-  setTimeout(() => notification.close(), 5000);
   return true;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
 }
 
 function showAppToast(message) {

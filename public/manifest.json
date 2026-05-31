@@ -1,0 +1,24 @@
+{
+  "name": "Talksy",
+  "short_name": "Talksy",
+  "description": "Private one-to-one chat.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#071324",
+  "theme_color": "#071324",
+  "icons": [
+    {
+      "src": "/assets/talksy-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/talksy-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

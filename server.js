@@ -4,6 +4,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
 const mongoose = require("mongoose");
+const webPush = require("web-push");
 
 // === Initialize Express and Server ===
 const app = express();
@@ -14,8 +15,22 @@ const io = new Server(server, {
 
 const MAX_PHOTO_DATA_URL_LENGTH = 10_000_000;
 const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || "";
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "";
+const pushEnabled = Boolean(vapidPublicKey && vapidPrivateKey);
+
+if (pushEnabled) {
+  webPush.setVapidDetails(
+    process.env.VAPID_SUBJECT || "mailto:admin@talksy.app",
+    vapidPublicKey,
+    vapidPrivateKey
+  );
+} else {
+  console.warn("Push notifications disabled. Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY to enable them.");
+}
 
 // === Serve frontend from /public ===
+app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 // === Connect to MongoDB ===
@@ -47,6 +62,15 @@ const messageSchema = new mongoose.Schema({
 
 const Message = mongoose.model("Message", messageSchema);
 
+const pushSubscriptionSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  endpoint: { type: String, required: true, unique: true },
+  subscription: { type: mongoose.Schema.Types.Mixed, required: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+const PushSubscription = mongoose.model("PushSubscription", pushSubscriptionSchema);
+
 // === Active Users Map ===
 let users = {}; // exact username: socketId
 
@@ -64,6 +88,94 @@ function isAllowedPhoto(image, mimeType) {
 function emitOnlineUsers() {
   io.emit("onlineUsers", Object.keys(users));
 }
+
+function isValidPushSubscription(subscription) {
+  return Boolean(
+    subscription
+    && typeof subscription.endpoint === "string"
+    && subscription.endpoint.length > 0
+    && subscription.keys
+    && typeof subscription.keys.p256dh === "string"
+    && typeof subscription.keys.auth === "string"
+  );
+}
+
+async function sendPushNotification(username) {
+  if (!pushEnabled) return;
+
+  const cleanName = cleanUserName(username);
+  if (!cleanName) return;
+
+  const subscriptions = await PushSubscription.find({ username: cleanName });
+  if (!subscriptions.length) return;
+
+  const payload = JSON.stringify({
+    title: "Talksy",
+    body: "You have a new message.",
+    url: "/",
+  });
+
+  await Promise.all(subscriptions.map(async (saved) => {
+    try {
+      await webPush.sendNotification(saved.subscription, payload);
+    } catch (err) {
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        await PushSubscription.deleteOne({ _id: saved._id });
+        return;
+      }
+
+      console.log("Push notification error:", err.message || err);
+    }
+  }));
+}
+
+app.get("/push/public-key", (req, res) => {
+  res.json({
+    ok: pushEnabled,
+    publicKey: pushEnabled ? vapidPublicKey : "",
+  });
+});
+
+app.post("/push/subscribe", async (req, res) => {
+  if (!pushEnabled) {
+    res.status(503).json({ ok: false, message: "Push notifications are not configured yet." });
+    return;
+  }
+
+  const username = cleanUserName(req.body?.username);
+  const subscription = req.body?.subscription;
+
+  if (!username || !isValidPushSubscription(subscription)) {
+    res.status(400).json({ ok: false, message: "Invalid push subscription." });
+    return;
+  }
+
+  await PushSubscription.findOneAndUpdate(
+    { endpoint: subscription.endpoint },
+    {
+      username,
+      endpoint: subscription.endpoint,
+      subscription,
+      updatedAt: new Date(),
+    },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
+
+  res.json({ ok: true });
+});
+
+app.delete("/push/subscribe", async (req, res) => {
+  const username = cleanUserName(req.body?.username);
+  const endpoint = req.body?.endpoint;
+
+  if (!username || !endpoint) {
+    res.status(400).json({ ok: false, message: "Missing push subscription." });
+    return;
+  }
+
+  await PushSubscription.deleteOne({ username, endpoint });
+  res.json({ ok: true });
+});
 
 // === Socket.IO Connection ===
 io.on("connection", (socket) => {
@@ -139,6 +251,10 @@ io.on("connection", (socket) => {
         timestamp: Date.now(),
       });
     }
+
+    sendPushNotification(receiverName).catch((err) => {
+      console.log("Push notification error:", err.message || err);
+    });
   });
 
   // Fetch history

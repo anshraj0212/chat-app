@@ -332,7 +332,8 @@ function enterChat({ celebrate }) {
     || localStorage.getItem("talksy_active_contact");
   activeReceiver = findContact(savedActive) || contacts[0] || "";
 
-  currentUserEl.textContent = `Logged in as ${username}`;
+  currentUserEl.textContent = username;
+  currentUserEl.setAttribute("aria-label", `Logged in as ${username}`);
   loginBox.classList.add("hidden");
   chatBox.classList.remove("hidden");
   updateNotificationButton();

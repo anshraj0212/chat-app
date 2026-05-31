@@ -473,7 +473,9 @@ body{
   margin-top:8px;
   border-radius:12px;
   border:1px solid rgba(255,255,255,.12);
+  cursor:pointer;
 }
+.photo-preview:focus-visible{ outline:3px solid var(--ring); outline-offset:2px; }
 .photo-download{
   display:inline-flex;
   justify-content:center;
@@ -668,6 +670,41 @@ body{
   74% { opacity:1; }
   100% { transform: translateX(130%); opacity:0; }
 }
+
+/* ===== Full-screen photo viewer ===== */
+.photo-viewer{
+  position:fixed;
+  inset:0;
+  z-index:10002;
+  display:grid;
+  place-items:center;
+  padding:18px;
+  background:rgba(2, 6, 23, .88);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+.photo-viewer-image{
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain;
+  border-radius:12px;
+  box-shadow:0 30px 90px rgba(0,0,0,.7);
+}
+.photo-viewer-close{
+  position:absolute;
+  top:14px;
+  right:14px;
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(7,13,24,.72);
+  color:var(--text);
+  font-size:18px;
+  font-weight:900;
+  cursor:pointer;
+}
+.photo-viewer-close:focus-visible{ outline:3px solid var(--ring); outline-offset:2px; }
 
 /* ===== Confetti ===== */
 .confetti{
@@ -951,14 +988,16 @@ body{
     border-radius:12px;
   }
   .chat-input{
-    flex-wrap:nowrap;
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) 54px 48px 52px;
     gap:6px;
     padding:8px;
     align-items:flex-end;
   }
   .chat-input #message{
+    width:100%;
     min-width:0;
-    flex-basis:auto;
+    grid-column:1;
   }
   .message-input{
     min-height:44px;
@@ -969,9 +1008,22 @@ body{
   .chat-input .send,
   .chat-input .record,
   .chat-input .photo{
-    min-width:48px;
+    width:100%;
+    min-width:0;
     padding:11px 9px;
     font-size:12px;
+  }
+  .photo-viewer{
+    padding:8px;
+  }
+  .photo-viewer-image{
+    border-radius:8px;
+  }
+  .photo-viewer-close{
+    top:10px;
+    right:10px;
+    width:38px;
+    height:38px;
   }
   .modal-card{ padding:22px; }
   .modal-actions{ flex-direction:column-reverse; }

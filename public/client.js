@@ -38,6 +38,9 @@ const deleteConfirmBtn = document.getElementById("deleteConfirmBtn");
 const deleteForeverBtn = document.getElementById("deleteForeverBtn");
 const typingEl = document.getElementById("typingIndicator");
 const typingTextEl = document.getElementById("typingText");
+const photoViewer = document.getElementById("photoViewer");
+const photoViewerImage = document.getElementById("photoViewerImage");
+const photoViewerClose = document.getElementById("photoViewerClose");
 
 const splash = document.getElementById("splash");
 const motionLayer = document.getElementById("motionLayer");
@@ -151,6 +154,10 @@ deleteModalCloseBtn.addEventListener("click", closeDeleteChatModal);
 deleteCancelBtn.addEventListener("click", closeDeleteChatModal);
 deleteConfirmBtn.addEventListener("click", confirmDeleteChat);
 deleteForeverBtn.addEventListener("click", confirmPermanentDeleteChat);
+photoViewerClose.addEventListener("click", closePhotoViewer);
+photoViewer.addEventListener("click", (e) => {
+  if (e.target === photoViewer) closePhotoViewer();
+});
 newChatModal.addEventListener("click", (e) => {
   if (e.target === newChatModal) closeNewChatModal();
 });
@@ -170,6 +177,9 @@ document.addEventListener("keydown", (e) => {
   }
   if (e.key === "Escape" && !deleteChatModal.classList.contains("hidden")) {
     closeDeleteChatModal();
+  }
+  if (e.key === "Escape" && !photoViewer.classList.contains("hidden")) {
+    closePhotoViewer();
   }
 });
 recordBtn.addEventListener("click", () => {
@@ -939,6 +949,16 @@ function addPhotoMessage(imageSrc, opts = {}) {
     image.className = "photo-preview";
     image.src = imageSrc;
     image.alt = "Shared photo";
+    image.tabIndex = 0;
+    image.setAttribute("role", "button");
+    image.title = "Open photo";
+    image.addEventListener("click", () => openPhotoViewer(imageSrc));
+    image.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openPhotoViewer(imageSrc);
+      }
+    });
     wrapper.appendChild(image);
 
     if (opts.canDownload && opts.id) {
@@ -965,6 +985,18 @@ function addPhotoMessage(imageSrc, opts = {}) {
   wrapper.appendChild(time);
   chatWindow.appendChild(wrapper);
   chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function openPhotoViewer(imageSrc) {
+  if (!imageSrc) return;
+  photoViewerImage.src = imageSrc;
+  photoViewer.classList.remove("hidden");
+  photoViewerClose.focus();
+}
+
+function closePhotoViewer() {
+  photoViewer.classList.add("hidden");
+  photoViewerImage.removeAttribute("src");
 }
 
 function downloadReceivedPhoto({ id, image, fileName, button }) {

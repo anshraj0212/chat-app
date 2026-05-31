@@ -152,6 +152,11 @@
     </div>
   </div>
 
+  <div id="photoViewer" class="photo-viewer hidden" role="dialog" aria-modal="true" aria-label="Photo preview">
+    <button id="photoViewerClose" class="photo-viewer-close" type="button" aria-label="Close photo">x</button>
+    <img id="photoViewerImage" class="photo-viewer-image" alt="Shared photo preview" />
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
 </body>

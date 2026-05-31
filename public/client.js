@@ -400,7 +400,7 @@ async function toggleNotifications() {
       await subscribeToPush();
       setAlertsEnabled(true);
       showAppToast("App alerts on.");
-      showNotification("Alerts are on.");
+      await sendTestPushNotification();
     } catch (err) {
       setAlertsEnabled(false);
       showAppToast(err.message || "Could not turn on app alerts.");
@@ -443,10 +443,11 @@ function updateNotificationButton() {
   }
 }
 
-function showNewMessageNotification() {
+async function showNewMessageNotification() {
   if (!alertsEnabled()) return;
 
-  if (document.visibilityState === "visible") {
+  const shown = await showNotification("You have a new message.");
+  if (!shown && document.visibilityState === "visible") {
     showAppToast("You have a new message.");
   }
 }
@@ -506,6 +507,19 @@ async function subscribeToPush() {
   }
 
   return subscription;
+}
+
+async function sendTestPushNotification() {
+  const res = await fetch("/push/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username }),
+  });
+
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok || !result.ok) {
+    throw new Error(result.message || "Could not send a test app alert.");
+  }
 }
 
 async function unsubscribeFromPush() {

@@ -101,13 +101,13 @@ function isValidPushSubscription(subscription) {
 }
 
 async function sendPushNotification(username) {
-  if (!pushEnabled) return;
+  if (!pushEnabled) return { sent: 0, total: 0 };
 
   const cleanName = cleanUserName(username);
-  if (!cleanName) return;
+  if (!cleanName) return { sent: 0, total: 0 };
 
   const subscriptions = await PushSubscription.find({ username: cleanName });
-  if (!subscriptions.length) return;
+  if (!subscriptions.length) return { sent: 0, total: 0 };
 
   const payload = JSON.stringify({
     title: "Talksy",
@@ -115,9 +115,12 @@ async function sendPushNotification(username) {
     url: "/",
   });
 
+  let sent = 0;
+
   await Promise.all(subscriptions.map(async (saved) => {
     try {
       await webPush.sendNotification(saved.subscription, payload);
+      sent += 1;
     } catch (err) {
       if (err.statusCode === 404 || err.statusCode === 410) {
         await PushSubscription.deleteOne({ _id: saved._id });
@@ -127,6 +130,8 @@ async function sendPushNotification(username) {
       console.log("Push notification error:", err.message || err);
     }
   }));
+
+  return { sent, total: subscriptions.length };
 }
 
 app.get("/push/public-key", (req, res) => {
@@ -162,6 +167,27 @@ app.post("/push/subscribe", async (req, res) => {
   );
 
   res.json({ ok: true });
+});
+
+app.post("/push/test", async (req, res) => {
+  if (!pushEnabled) {
+    res.status(503).json({ ok: false, message: "Push notifications are not configured yet." });
+    return;
+  }
+
+  const username = cleanUserName(req.body?.username);
+  if (!username) {
+    res.status(400).json({ ok: false, message: "Log in before testing app alerts." });
+    return;
+  }
+
+  const result = await sendPushNotification(username);
+  if (!result.total) {
+    res.status(404).json({ ok: false, message: "No app alert subscription was found." });
+    return;
+  }
+
+  res.json({ ok: result.sent > 0, ...result });
 });
 
 app.delete("/push/subscribe", async (req, res) => {

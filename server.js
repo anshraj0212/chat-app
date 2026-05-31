@@ -9,10 +9,10 @@ const mongoose = require("mongoose");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  maxHttpBufferSize: 8e6,
+  maxHttpBufferSize: 12e6,
 });
 
-const MAX_PHOTO_DATA_URL_LENGTH = 4_000_000;
+const MAX_PHOTO_DATA_URL_LENGTH = 10_000_000;
 const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 // === Serve frontend from /public ===

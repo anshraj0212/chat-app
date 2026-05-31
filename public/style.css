@@ -835,38 +835,144 @@ body{
 
 /* ===== Responsive ===== */
 @media (max-width:640px){
-  .wrap{ padding:10px; }
+  .wrap{
+    padding:6px;
+    align-items:stretch;
+  }
   .card-lg{
-    height:92svh;
+    width:100%;
+    height:calc(100svh - 12px);
+    height:calc(100dvh - 12px);
     flex-direction:column;
+    border-radius:14px;
   }
   .contacts-panel{
+    display:grid;
+    grid-template-columns:auto minmax(0, 1fr);
+    grid-template-rows:auto auto;
     width:100%;
     min-width:0;
-    max-height:220px;
+    max-height:118px;
+    padding:8px;
+    gap:6px;
+    flex:0 0 auto;
     border-right:0;
     border-bottom:1px solid var(--glass-border);
   }
-  .contacts-head{ align-items:center; }
+  .contacts-head{
+    grid-column:1 / -1;
+    align-items:center;
+    gap:8px;
+  }
+  .brand.small{
+    margin:0;
+    gap:8px;
+  }
+  .brand.small .chat-title{ font-size:16px; }
+  .current-user{ display:none; }
+  .contacts-head .ghost-btn{
+    padding:7px 10px;
+    font-size:12px;
+  }
+  .new-chat{
+    grid-column:1;
+    min-width:94px;
+    align-self:stretch;
+    padding:9px 12px;
+    font-size:13px;
+    border-radius:14px;
+  }
   .contact-list{
+    grid-column:2;
+    min-width:0;
     flex-direction:row;
     overflow-x:auto;
     overflow-y:hidden;
     padding-bottom:4px;
+    gap:6px;
+  }
+  .contacts-empty{
+    padding:10px 12px;
+    white-space:nowrap;
   }
   .contact-item{
-    min-width:160px;
+    min-width:128px;
     flex:0 0 auto;
+    padding:7px;
+    gap:8px;
+    border-radius:12px;
+  }
+  .contact-avatar{
+    width:30px;
+    height:30px;
+    font-size:13px;
+  }
+  .online-dot{
+    width:10px;
+    height:10px;
+  }
+  .contact-name{ font-size:14px; }
+  .contact-delete{
+    width:26px;
+    height:26px;
+    font-size:13px;
   }
   .conversation-panel{ min-height:0; }
-  .chat-header{ align-items:flex-start; }
-  .chat-status{ flex-direction:column; align-items:flex-end; }
-  .chat-window{ min-height:240px; }
-  .chat-input{ flex-wrap: wrap; }
-  .chat-input #message{ min-width: 0; flex-basis: 100%; }
+  .chat-header{
+    align-items:center;
+    padding:8px 10px;
+  }
+  .chat-title{ font-size:17px; }
+  .chat-subtitle{ display:none; }
+  .chat-status{
+    flex-direction:row;
+    align-items:flex-end;
+    gap:5px;
+  }
+  .chat-header > div:first-child{ min-width:0; }
+  #chatTitle{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .presence,
+  .notification-btn{
+    padding:5px 8px;
+    font-size:11px;
+  }
+  .chat-window{
+    min-height:0;
+    padding:10px;
+    gap:8px;
+  }
+  .message{
+    max-width:88%;
+    padding:8px 10px 20px;
+    border-radius:12px;
+  }
+  .chat-input{
+    flex-wrap:nowrap;
+    gap:6px;
+    padding:8px;
+    align-items:flex-end;
+  }
+  .chat-input #message{
+    min-width:0;
+    flex-basis:auto;
+  }
+  .message-input{
+    min-height:44px;
+    max-height:88px;
+    padding:12px 14px;
+    border-radius:22px;
+  }
   .chat-input .send,
   .chat-input .record,
-  .chat-input .photo{ min-width: 64px; padding-inline: 14px; }
+  .chat-input .photo{
+    min-width:48px;
+    padding:11px 9px;
+    font-size:12px;
+  }
   .modal-card{ padding:22px; }
   .modal-actions{ flex-direction:column-reverse; }
   .modal-secondary,
@@ -874,7 +980,10 @@ body{
   .voice-message,
   .photo-message{ min-width: min(280px, 82vw); }
   .talksy-logo{ width:120px; }
-  .chat-logo{ width:34px; }
+  .chat-logo{
+    width:30px;
+    margin-right:0;
+  }
   .heading-logo-tile{ width:44px; height:44px; }
   .heading-logo{ width:34px; height:34px; }
 }

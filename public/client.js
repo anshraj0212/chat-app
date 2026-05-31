@@ -56,9 +56,7 @@ let confirmingPermanentDelete = false;
 let onlineUsers = new Set();
 const unreadContacts = new Set();
 const TYPING_DELAY = 1200;
-const MAX_PHOTO_DATA_URL_LENGTH = 4_000_000;
-const PHOTO_MAX_SIDE = 1600;
-const PHOTO_QUALITY = 0.82;
+const MAX_PHOTO_DATA_URL_LENGTH = 10_000_000;
 const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function contactStorageKey() {
@@ -761,30 +759,15 @@ async function sendSelectedPhoto() {
 }
 
 async function preparePhoto(file) {
-  const source = await readFileAsDataUrl(file);
-  const img = await loadImage(source);
-  const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(img.width, img.height));
-  const width = Math.max(1, Math.round(img.width * scale));
-  const height = Math.max(1, Math.round(img.height * scale));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-  ctx.drawImage(img, 0, 0, width, height);
-
-  const image = canvas.toDataURL("image/jpeg", PHOTO_QUALITY);
+  const image = await readFileAsDataUrl(file);
   if (image.length > MAX_PHOTO_DATA_URL_LENGTH) {
-    throw new Error("This photo is too large. Try a smaller photo.");
+    throw new Error("This photo is too large to send at original quality.");
   }
 
   return {
     image,
-    mimeType: "image/jpeg",
-    fileName: photoFileName(file.name),
+    mimeType: file.type,
+    fileName: photoFileName(file.name, file.type),
   };
 }
 
@@ -797,18 +780,10 @@ function readFileAsDataUrl(file) {
   });
 }
 
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Could not open this photo."));
-    img.src = src;
-  });
-}
-
-function photoFileName(name) {
+function photoFileName(name, mimeType) {
+  const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
   const base = normalizeName(String(name || "talksy-photo").replace(/\.[^.]+$/, ""));
-  return `${base || "talksy-photo"}.jpg`;
+  return `${base || "talksy-photo"}.${extension}`;
 }
 
 function emitTyping() {

@@ -336,6 +336,7 @@ function enterChat({ celebrate }) {
   currentUserEl.setAttribute("aria-label", `Logged in as ${username}`);
   loginBox.classList.add("hidden");
   chatBox.classList.remove("hidden");
+  registerNativeAppUser();
   updateNotificationButton();
   if (alertsEnabled()) syncPushSubscription();
 
@@ -356,6 +357,16 @@ function showLoginError(message) {
   loginBox.classList.remove("hidden");
   chatBox.classList.add("hidden");
   nameInput.focus();
+}
+
+function registerNativeAppUser() {
+  try {
+    if (window.TalksyAndroid?.registerUser) {
+      window.TalksyAndroid.registerUser(username);
+    }
+  } catch {
+    // Native Android bridge is available only inside the Talksy Android app.
+  }
 }
 
 function alertsEnabled() {

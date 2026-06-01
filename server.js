@@ -5,6 +5,7 @@ const { Server } = require("socket.io");
 const path = require("path");
 const mongoose = require("mongoose");
 const webPush = require("web-push");
+const admin = require("firebase-admin");
 
 // === Initialize Express and Server ===
 const app = express();
@@ -18,6 +19,8 @@ const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || "";
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "";
 const pushEnabled = Boolean(vapidPublicKey && vapidPrivateKey);
+const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
+let fcmEnabled = false;
 
 if (pushEnabled) {
   webPush.setVapidDetails(
@@ -27,6 +30,20 @@ if (pushEnabled) {
   );
 } else {
   console.warn("Push notifications disabled. Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY to enable them.");
+}
+
+if (firebaseServiceAccountJson) {
+  try {
+    const serviceAccount = JSON.parse(firebaseServiceAccountJson);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    fcmEnabled = true;
+  } catch (err) {
+    console.warn("FCM notifications disabled. FIREBASE_SERVICE_ACCOUNT_JSON is invalid.", err.message || err);
+  }
+} else {
+  console.warn("FCM notifications disabled. Set FIREBASE_SERVICE_ACCOUNT_JSON to enable Android app alerts.");
 }
 
 // === Serve frontend from /public ===
@@ -70,6 +87,14 @@ const pushSubscriptionSchema = new mongoose.Schema({
 });
 
 const PushSubscription = mongoose.model("PushSubscription", pushSubscriptionSchema);
+
+const fcmTokenSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  token: { type: String, required: true, unique: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+const FcmToken = mongoose.model("FcmToken", fcmTokenSchema);
 
 // === Active Users Map ===
 let users = {}; // exact username: socketId
@@ -132,6 +157,51 @@ async function sendPushNotification(username) {
   }));
 
   return { sent, total: subscriptions.length };
+}
+
+async function sendFcmNotification(username) {
+  if (!fcmEnabled) return { sent: 0, total: 0 };
+
+  const cleanName = cleanUserName(username);
+  if (!cleanName) return { sent: 0, total: 0 };
+
+  const tokens = await FcmToken.find({ username: cleanName });
+  if (!tokens.length) return { sent: 0, total: 0 };
+
+  let sent = 0;
+
+  await Promise.all(tokens.map(async (saved) => {
+    try {
+      await admin.messaging().send({
+        token: saved.token,
+        notification: {
+          title: "Talksy",
+          body: "You have a new message.",
+        },
+        data: {
+          url: "/",
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "talksy_messages",
+            icon: "ic_launcher",
+          },
+        },
+      });
+      sent += 1;
+    } catch (err) {
+      const code = err.code || "";
+      if (code.includes("registration-token-not-registered") || code.includes("invalid-registration-token")) {
+        await FcmToken.deleteOne({ _id: saved._id });
+        return;
+      }
+
+      console.log("FCM notification error:", err.message || err);
+    }
+  }));
+
+  return { sent, total: tokens.length };
 }
 
 app.get("/push/public-key", (req, res) => {
@@ -200,6 +270,33 @@ app.delete("/push/subscribe", async (req, res) => {
   }
 
   await PushSubscription.deleteOne({ username, endpoint });
+  res.json({ ok: true });
+});
+
+app.post("/fcm/register", async (req, res) => {
+  if (!fcmEnabled) {
+    res.status(503).json({ ok: false, message: "Android app notifications are not configured yet." });
+    return;
+  }
+
+  const username = cleanUserName(req.body?.username);
+  const token = cleanUserName(req.body?.token);
+
+  if (!username || !token) {
+    res.status(400).json({ ok: false, message: "Missing Android notification token." });
+    return;
+  }
+
+  await FcmToken.findOneAndUpdate(
+    { token },
+    {
+      username,
+      token,
+      updatedAt: new Date(),
+    },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
+
   res.json({ ok: true });
 });
 
@@ -280,6 +377,9 @@ io.on("connection", (socket) => {
 
     sendPushNotification(receiverName).catch((err) => {
       console.log("Push notification error:", err.message || err);
+    });
+    sendFcmNotification(receiverName).catch((err) => {
+      console.log("FCM notification error:", err.message || err);
     });
   });
 

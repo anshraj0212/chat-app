@@ -140,6 +140,35 @@
     </div>
   </div>
 
+  <div id="authPasswordModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="authPasswordTitle">
+    <div class="modal-card">
+      <button id="authPasswordCloseBtn" class="modal-close" type="button" aria-label="Close">x</button>
+
+      <div class="modal-mark">
+        <img src="assets/talksy-logo.png" alt="" />
+      </div>
+
+      <h2 id="authPasswordTitle" class="modal-title">Set password</h2>
+      <p id="authPasswordCopy" class="modal-copy">Protect this Talksy name with a password.</p>
+
+      <label class="modal-label" for="authPasswordInput">Password for <strong id="authPasswordName"></strong></label>
+      <input
+        type="password"
+        id="authPasswordInput"
+        class="input modal-input"
+        placeholder="Minimum 4 characters"
+        minlength="4"
+        autocomplete="current-password"
+      />
+      <p id="authPasswordError" class="modal-error hidden"></p>
+
+      <div class="modal-actions">
+        <button id="authPasswordCancelBtn" class="ghost-btn modal-secondary" type="button">Cancel</button>
+        <button id="authPasswordSubmitBtn" class="btn pill modal-primary" type="button">Continue</button>
+      </div>
+    </div>
+  </div>
+
   <div id="deleteChatModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="deleteChatTitle">
     <div class="modal-card danger-modal">
       <button id="deleteModalCloseBtn" class="modal-close" type="button" aria-label="Close">x</button>

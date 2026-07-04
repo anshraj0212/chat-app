@@ -26,6 +26,15 @@ const modalError = document.getElementById("modalError");
 const modalCloseBtn = document.getElementById("modalCloseBtn");
 const modalCancelBtn = document.getElementById("modalCancelBtn");
 const modalStartBtn = document.getElementById("modalStartBtn");
+const authPasswordModal = document.getElementById("authPasswordModal");
+const authPasswordTitle = document.getElementById("authPasswordTitle");
+const authPasswordCopy = document.getElementById("authPasswordCopy");
+const authPasswordName = document.getElementById("authPasswordName");
+const authPasswordInput = document.getElementById("authPasswordInput");
+const authPasswordError = document.getElementById("authPasswordError");
+const authPasswordCloseBtn = document.getElementById("authPasswordCloseBtn");
+const authPasswordCancelBtn = document.getElementById("authPasswordCancelBtn");
+const authPasswordSubmitBtn = document.getElementById("authPasswordSubmitBtn");
 const deleteChatModal = document.getElementById("deleteChatModal");
 const deleteChatTitle = document.getElementById("deleteChatTitle");
 const deleteChatCopy = document.getElementById("deleteChatCopy");
@@ -66,6 +75,7 @@ let onlineUsers = new Set();
 let toastTimeout = null;
 let serviceWorkerRegistrationPromise = null;
 let pendingReply = null;
+let pendingAuth = null;
 const unreadContacts = new Set();
 const TYPING_DELAY = 1200;
 const MAX_PHOTO_DATA_URL_LENGTH = 10_000_000;
@@ -160,6 +170,9 @@ sendBtn.addEventListener("click", sendMessage);
 modalCloseBtn.addEventListener("click", closeNewChatModal);
 modalCancelBtn.addEventListener("click", closeNewChatModal);
 modalStartBtn.addEventListener("click", submitNewChatModal);
+authPasswordCloseBtn.addEventListener("click", closeAuthPasswordModal);
+authPasswordCancelBtn.addEventListener("click", closeAuthPasswordModal);
+authPasswordSubmitBtn.addEventListener("click", submitAuthPassword);
 deleteModalCloseBtn.addEventListener("click", closeDeleteChatModal);
 deleteCancelBtn.addEventListener("click", closeDeleteChatModal);
 deleteConfirmBtn.addEventListener("click", confirmDeleteChat);
@@ -182,9 +195,19 @@ modalReceiverInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") submitNewChatModal();
   if (e.key === "Escape") closeNewChatModal();
 });
+authPasswordInput.addEventListener("input", () => {
+  authPasswordError.classList.add("hidden");
+});
+authPasswordInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitAuthPassword();
+  if (e.key === "Escape") closeAuthPasswordModal();
+});
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !newChatModal.classList.contains("hidden")) {
     closeNewChatModal();
+  }
+  if (e.key === "Escape" && !authPasswordModal.classList.contains("hidden")) {
+    closeAuthPasswordModal();
   }
   if (e.key === "Escape" && !deleteChatModal.classList.contains("hidden")) {
     closeDeleteChatModal();
@@ -334,13 +357,19 @@ socket.on("stopTyping", ({ sender }) => {
   hideTyping();
 });
 
-function registerAndEnter({ celebrate }) {
-  socket.emit("register", username, (result = {}) => {
+function registerAndEnter({ celebrate, password = "" }) {
+  socket.emit("register", { username, password }, (result = {}) => {
     if (!result.ok) {
+      if (result.needsPassword || result.needsPasswordSetup) {
+        openAuthPasswordModal(result, { celebrate });
+        return;
+      }
+
       showLoginError(result.message || "This name is already in use.");
       return;
     }
 
+    closeAuthPasswordModal({ keepName: true });
     username = result.username || username;
     enterChat({ celebrate });
     if (celebrate) updateNotificationButton();
@@ -380,6 +409,63 @@ function showLoginError(message) {
   loginBox.classList.remove("hidden");
   chatBox.classList.add("hidden");
   nameInput.focus();
+}
+
+function openAuthPasswordModal(result = {}, opts = {}) {
+  username = result.username || username;
+  pendingAuth = {
+    username,
+    celebrate: Boolean(opts.celebrate),
+    setup: Boolean(result.needsPasswordSetup),
+  };
+
+  authPasswordTitle.textContent = pendingAuth.setup ? "Set password" : "Enter password";
+  authPasswordCopy.textContent = pendingAuth.setup
+    ? "This name does not have a password yet. Set one now to protect it."
+    : "This name is protected. Enter its password to continue.";
+  authPasswordName.textContent = username;
+  authPasswordInput.value = "";
+  authPasswordError.classList.add("hidden");
+  authPasswordSubmitBtn.textContent = pendingAuth.setup ? "Set password" : "Log in";
+  authPasswordInput.autocomplete = pendingAuth.setup ? "new-password" : "current-password";
+  authPasswordModal.classList.remove("hidden");
+  setTimeout(() => authPasswordInput.focus(), 50);
+}
+
+function closeAuthPasswordModal(opts = {}) {
+  authPasswordModal.classList.add("hidden");
+  authPasswordInput.value = "";
+  authPasswordError.classList.add("hidden");
+  pendingAuth = null;
+
+  if (!opts.keepName) {
+    localStorage.removeItem(NAME_KEY);
+    loginBox.classList.remove("hidden");
+    chatBox.classList.add("hidden");
+    nameInput.focus();
+  }
+}
+
+function showAuthPasswordError(message) {
+  authPasswordError.textContent = message;
+  authPasswordError.classList.remove("hidden");
+}
+
+function submitAuthPassword() {
+  if (!pendingAuth) return;
+
+  const password = authPasswordInput.value;
+  if (password.length < 4) {
+    showAuthPasswordError("Password must be at least 4 characters.");
+    authPasswordInput.focus();
+    return;
+  }
+
+  username = pendingAuth.username;
+  registerAndEnter({
+    celebrate: pendingAuth.celebrate,
+    password,
+  });
 }
 
 function registerNativeAppUser() {

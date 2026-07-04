@@ -6,6 +6,8 @@ const path = require("path");
 const mongoose = require("mongoose");
 const webPush = require("web-push");
 const admin = require("firebase-admin");
+const { randomBytes, scrypt, timingSafeEqual } = require("crypto");
+const { promisify } = require("util");
 
 // === Initialize Express and Server ===
 const app = express();
@@ -13,6 +15,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   maxHttpBufferSize: 12e6,
 });
+const scryptAsync = promisify(scrypt);
 
 const MAX_PHOTO_DATA_URL_LENGTH = 10_000_000;
 const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -85,6 +88,15 @@ const messageSchema = new mongoose.Schema({
 
 const Message = mongoose.model("Message", messageSchema);
 
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  passwordHash: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+const User = mongoose.model("User", userSchema);
+
 const pushSubscriptionSchema = new mongoose.Schema({
   username: { type: String, required: true },
   endpoint: { type: String, required: true, unique: true },
@@ -107,6 +119,25 @@ let users = {}; // exact username: socketId
 
 function cleanUserName(name) {
   return String(name || "").trim().replace(/\s+/g, " ");
+}
+
+function cleanPassword(password) {
+  return String(password || "");
+}
+
+async function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const key = await scryptAsync(cleanPassword(password), salt, 64);
+  return `scrypt:${salt}:${key.toString("hex")}`;
+}
+
+async function verifyPassword(password, storedHash) {
+  const [method, salt, keyHex] = String(storedHash || "").split(":");
+  if (method !== "scrypt" || !salt || !keyHex) return false;
+
+  const storedKey = Buffer.from(keyHex, "hex");
+  const suppliedKey = await scryptAsync(cleanPassword(password), salt, storedKey.length);
+  return storedKey.length === suppliedKey.length && timingSafeEqual(storedKey, suppliedKey);
 }
 
 function isAllowedPhoto(image, mimeType) {
@@ -329,8 +360,10 @@ io.on("connection", (socket) => {
   console.log("🟢 Connected:", socket.id);
 
   // Register username
-  socket.on("register", (username, done = () => {}) => {
-    const cleanName = cleanUserName(username);
+  socket.on("register", async (payload, done = () => {}) => {
+    const isLegacyPayload = typeof payload === "string";
+    const cleanName = cleanUserName(isLegacyPayload ? payload : payload?.username);
+    const password = cleanPassword(isLegacyPayload ? "" : payload?.password);
     if (!cleanName) {
       done({ ok: false, message: "Please enter a name." });
       return;
@@ -346,10 +379,69 @@ io.on("connection", (socket) => {
       return;
     }
 
-    users[cleanName] = socket.id;
-    emitOnlineUsers();
-    done({ ok: true, username: cleanName });
-    console.log(`👤 ${username} logged in as ${socket.id}`);
+    try {
+      const existingUser = await User.findOne({ username: cleanName });
+
+      if (!existingUser && !password) {
+        done({
+          ok: false,
+          needsPasswordSetup: true,
+          username: cleanName,
+          message: `Set a password for ${cleanName}.`,
+        });
+        return;
+      }
+
+      if (existingUser && !password) {
+        done({
+          ok: false,
+          needsPassword: true,
+          username: cleanName,
+          message: `Enter the password for ${cleanName}.`,
+        });
+        return;
+      }
+
+      if (password.length < 4) {
+        done({ ok: false, username: cleanName, message: "Password must be at least 4 characters." });
+        return;
+      }
+
+      if (existingUser) {
+        const passwordOk = await verifyPassword(password, existingUser.passwordHash);
+        if (!passwordOk) {
+          done({ ok: false, needsPassword: true, username: cleanName, message: "Wrong password." });
+          return;
+        }
+
+        existingUser.updatedAt = new Date();
+        await existingUser.save();
+      } else {
+        await User.create({
+          username: cleanName,
+          passwordHash: await hashPassword(password),
+          updatedAt: new Date(),
+        });
+      }
+
+      users[cleanName] = socket.id;
+      emitOnlineUsers();
+      done({ ok: true, username: cleanName });
+      console.log(`User ${cleanName} logged in as ${socket.id}`);
+    } catch (err) {
+      if (err.code === 11000) {
+        done({
+          ok: false,
+          needsPassword: true,
+          username: cleanName,
+          message: "This name now has a password. Enter it to continue.",
+        });
+        return;
+      }
+
+      console.log("Register error:", err);
+      done({ ok: false, message: "Could not log in. Please try again." });
+    }
   });
 
   // Private Message

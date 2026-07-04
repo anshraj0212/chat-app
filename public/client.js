@@ -38,6 +38,10 @@ const deleteConfirmBtn = document.getElementById("deleteConfirmBtn");
 const deleteForeverBtn = document.getElementById("deleteForeverBtn");
 const typingEl = document.getElementById("typingIndicator");
 const typingTextEl = document.getElementById("typingText");
+const replyComposer = document.getElementById("replyComposer");
+const replyComposerSender = document.getElementById("replyComposerSender");
+const replyComposerText = document.getElementById("replyComposerText");
+const replyCancelBtn = document.getElementById("replyCancelBtn");
 const photoViewer = document.getElementById("photoViewer");
 const photoViewerImage = document.getElementById("photoViewerImage");
 const photoViewerClose = document.getElementById("photoViewerClose");
@@ -61,6 +65,7 @@ let confirmingPermanentDelete = false;
 let onlineUsers = new Set();
 let toastTimeout = null;
 let serviceWorkerRegistrationPromise = null;
+let pendingReply = null;
 const unreadContacts = new Set();
 const TYPING_DELAY = 1200;
 const MAX_PHOTO_DATA_URL_LENGTH = 10_000_000;
@@ -159,6 +164,7 @@ deleteModalCloseBtn.addEventListener("click", closeDeleteChatModal);
 deleteCancelBtn.addEventListener("click", closeDeleteChatModal);
 deleteConfirmBtn.addEventListener("click", confirmDeleteChat);
 deleteForeverBtn.addEventListener("click", confirmPermanentDeleteChat);
+replyCancelBtn.addEventListener("click", clearPendingReply);
 photoViewerClose.addEventListener("click", closePhotoViewer);
 photoViewer.addEventListener("click", (e) => {
   if (e.target === photoViewer) closePhotoViewer();
@@ -208,7 +214,7 @@ messageInput.addEventListener("input", () => {
   emitTyping();
 });
 
-socket.on("privateMessage", ({ id, sender, message, timestamp, type, audio, image, fileName, mimeType }) => {
+socket.on("privateMessage", ({ id, sender, message, timestamp, type, audio, image, fileName, mimeType, replyTo }) => {
   hideTyping();
 
   if (sender === "System") {
@@ -226,7 +232,7 @@ socket.on("privateMessage", ({ id, sender, message, timestamp, type, audio, imag
   }
 
   if (type === "voice") {
-    addVoiceMessage(audio, { sender, timestamp });
+    addVoiceMessage(audio, { id, sender, timestamp, replyTo });
   } else if (type === "photo") {
     addPhotoMessage(image, {
       id,
@@ -235,9 +241,16 @@ socket.on("privateMessage", ({ id, sender, message, timestamp, type, audio, imag
       fileName,
       mimeType,
       canDownload: true,
+      replyTo,
     });
   } else {
-    addMessage(`${sender}: ${message}`, { timestamp });
+    addMessage(`${sender}: ${message}`, {
+      id,
+      sender,
+      rawText: message,
+      timestamp,
+      replyTo,
+    });
   }
 });
 
@@ -277,9 +290,11 @@ socket.on("messageHistory", (history) => {
     const isYou = sameName(msg.sender, username);
     if (msg.type === "voice") {
       addVoiceMessage(msg.audio, {
+        id: msg._id,
         you: isYou,
         sender: isYou ? "You" : msg.sender,
         timestamp: msg.timestamp,
+        replyTo: msg.replyTo,
       });
     } else if (msg.type === "photo") {
       addPhotoMessage(msg.image, {
@@ -291,11 +306,19 @@ socket.on("messageHistory", (history) => {
         mimeType: msg.mimeType,
         canDownload: !isYou,
         cleared: !msg.image,
+        replyTo: msg.replyTo,
       });
     } else {
       addMessage(
         isYou ? `You: ${msg.message}` : `${msg.sender}: ${msg.message}`,
-        { you: isYou, timestamp: msg.timestamp }
+        {
+          id: msg._id,
+          you: isYou,
+          sender: isYou ? "You" : msg.sender,
+          rawText: msg.message,
+          timestamp: msg.timestamp,
+          replyTo: msg.replyTo,
+        }
       );
     }
   });
@@ -854,6 +877,7 @@ function selectContact(contact, opts = {}) {
   chatTitle.textContent = `Chatting with ${displayContact}`;
   chatSubtitle.textContent = "Messages are private between these two names.";
   chatWindow.innerHTML = "";
+  clearPendingReply();
   hideTyping();
   toggleComposer();
   resizeMessageInput();
@@ -864,6 +888,7 @@ function selectContact(contact, opts = {}) {
 
 function showNoContactSelected() {
   activeReceiver = "";
+  clearPendingReply();
   chatTitle.textContent = "Select a chat";
   chatSubtitle.textContent = "Choose a recent contact or start a new chat.";
   chatWindow.innerHTML = "";
@@ -902,17 +927,22 @@ function resizeMessageInput() {
 function sendMessage() {
   const message = messageInput.value.trim();
   if (!activeReceiver || !message) return;
+  const replyTo = consumePendingReply();
 
   socket.emit("privateMessage", {
     sender: username,
     receiver: activeReceiver,
     message,
+    replyTo,
   });
 
   addContact(activeReceiver);
   addMessage(`You: ${message}`, {
     you: true,
+    sender: "You",
+    rawText: message,
     timestamp: Date.now(),
+    replyTo,
   });
 
   socket.emit("stopTyping", { sender: username, receiver: activeReceiver });
@@ -938,6 +968,7 @@ async function sendSelectedPhoto() {
 
   try {
     const photo = await preparePhoto(file);
+    const replyTo = consumePendingReply();
 
     socket.emit("privateMessage", {
       sender: username,
@@ -946,6 +977,7 @@ async function sendSelectedPhoto() {
       image: photo.image,
       fileName: photo.fileName,
       mimeType: photo.mimeType,
+      replyTo,
     });
 
     addContact(activeReceiver);
@@ -955,6 +987,7 @@ async function sendSelectedPhoto() {
       timestamp: Date.now(),
       fileName: photo.fileName,
       mimeType: photo.mimeType,
+      replyTo,
     });
   } catch (err) {
     addMessage(`System: ${err.message || "Could not send this photo."}`, { meta: true });
@@ -1043,18 +1076,21 @@ function sendVoiceMessage(stream) {
 
   reader.onloadend = () => {
     const audio = reader.result;
+    const replyTo = consumePendingReply();
     socket.emit("privateMessage", {
       sender: username,
       receiver: activeReceiver,
       type: "voice",
       audio,
       mimeType: blob.type,
+      replyTo,
     });
     addContact(activeReceiver);
     addVoiceMessage(audio, {
       you: true,
       sender: "You",
       timestamp: Date.now(),
+      replyTo,
     });
     socket.emit("stopTyping", { sender: username, receiver: activeReceiver });
   };
@@ -1078,6 +1114,11 @@ function addMessage(text, opts = {}) {
   wrapper.classList.add("message");
   if (opts.you) wrapper.classList.add("you");
   if (opts.meta) wrapper.classList.add("meta");
+  if (opts.id) wrapper.dataset.messageId = opts.id;
+
+  if (opts.replyTo) {
+    wrapper.appendChild(createReplyQuote(opts.replyTo));
+  }
 
   const body = document.createElement("span");
   body.className = "msg-text";
@@ -1089,6 +1130,12 @@ function addMessage(text, opts = {}) {
 
   wrapper.appendChild(body);
   wrapper.appendChild(time);
+  attachReplyButton(wrapper, {
+    messageId: opts.id || "",
+    sender: opts.replySender || (opts.you ? username : opts.sender) || username,
+    type: "text",
+    text: opts.rawText || stripSenderPrefix(text),
+  });
   chatWindow.appendChild(wrapper);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
@@ -1100,6 +1147,10 @@ function addVoiceMessage(audioSrc, opts = {}) {
   const wrapper = document.createElement("div");
   wrapper.classList.add("message", "voice-message");
   if (opts.you) wrapper.classList.add("you");
+  if (opts.id) wrapper.dataset.messageId = opts.id;
+  if (opts.replyTo) {
+    wrapper.appendChild(createReplyQuote(opts.replyTo));
+  }
 
   const label = document.createElement("span");
   label.className = "msg-text";
@@ -1117,6 +1168,12 @@ function addVoiceMessage(audioSrc, opts = {}) {
   wrapper.appendChild(label);
   wrapper.appendChild(audio);
   wrapper.appendChild(time);
+  attachReplyButton(wrapper, {
+    messageId: opts.id || "",
+    sender: opts.replySender || (opts.you ? username : opts.sender) || "Voice",
+    type: "voice",
+    text: "Voice message",
+  });
   chatWindow.appendChild(wrapper);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
@@ -1128,6 +1185,10 @@ function addPhotoMessage(imageSrc, opts = {}) {
   wrapper.classList.add("message", "photo-message");
   if (opts.you) wrapper.classList.add("you");
   if (opts.id) wrapper.dataset.photoId = opts.id;
+  if (opts.id) wrapper.dataset.messageId = opts.id;
+  if (opts.replyTo) {
+    wrapper.appendChild(createReplyQuote(opts.replyTo));
+  }
 
   const label = document.createElement("span");
   label.className = "msg-text";
@@ -1178,8 +1239,70 @@ function addPhotoMessage(imageSrc, opts = {}) {
   time.textContent = opts.timestamp ? formatTime(opts.timestamp) : formatTime(Date.now());
 
   wrapper.appendChild(time);
+  attachReplyButton(wrapper, {
+    messageId: opts.id || "",
+    sender: opts.replySender || (opts.you ? username : opts.sender) || "Photo",
+    type: "photo",
+    text: "Photo",
+  });
   chatWindow.appendChild(wrapper);
   chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function createReplyQuote(replyTo) {
+  const quote = document.createElement("div");
+  quote.className = "reply-quote";
+
+  const sender = document.createElement("strong");
+  sender.textContent = replyTo.sender || "Message";
+
+  const text = document.createElement("span");
+  text.textContent = replyTo.text || "Message";
+
+  quote.appendChild(sender);
+  quote.appendChild(text);
+  return quote;
+}
+
+function attachReplyButton(wrapper, replyData) {
+  if (wrapper.classList.contains("meta")) return;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "reply-btn";
+  button.textContent = "Reply";
+  button.setAttribute("aria-label", `Reply to ${replyData.sender}`);
+  button.addEventListener("click", () => setPendingReply(replyData));
+  wrapper.appendChild(button);
+}
+
+function setPendingReply(replyData) {
+  pendingReply = {
+    messageId: String(replyData.messageId || ""),
+    sender: replyData.sender || "Message",
+    type: replyData.type || "text",
+    text: String(replyData.text || "Message").slice(0, 140),
+  };
+
+  replyComposerSender.textContent = pendingReply.sender;
+  replyComposerText.textContent = pendingReply.text;
+  replyComposer.classList.remove("hidden");
+  messageInput.focus();
+}
+
+function clearPendingReply() {
+  pendingReply = null;
+  replyComposer?.classList.add("hidden");
+}
+
+function consumePendingReply() {
+  const replyTo = pendingReply ? { ...pendingReply } : undefined;
+  clearPendingReply();
+  return replyTo;
+}
+
+function stripSenderPrefix(text) {
+  return String(text || "").replace(/^[^:]{1,32}:\s*/, "");
 }
 
 function openPhotoViewer(imageSrc) {

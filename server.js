@@ -69,6 +69,12 @@ const messageSchema = new mongoose.Schema({
   receiver: String,
   message: { type: String, default: "" },
   type: { type: String, enum: ["text", "voice", "photo"], default: "text" },
+  replyTo: {
+    messageId: String,
+    sender: String,
+    type: String,
+    text: String,
+  },
   audio: String,
   image: String,
   fileName: String,
@@ -123,6 +129,24 @@ function isValidPushSubscription(subscription) {
     && typeof subscription.keys.p256dh === "string"
     && typeof subscription.keys.auth === "string"
   );
+}
+
+function sanitizeReplyTo(replyTo) {
+  if (!replyTo || typeof replyTo !== "object") return undefined;
+
+  const sender = cleanUserName(replyTo.sender).slice(0, 24);
+  const type = cleanUserName(replyTo.type).slice(0, 20) || "text";
+  const text = cleanUserName(replyTo.text).slice(0, 140);
+  const messageId = cleanUserName(replyTo.messageId).slice(0, 80);
+
+  if (!sender || !text) return undefined;
+
+  return {
+    messageId,
+    sender,
+    type,
+    text,
+  };
 }
 
 async function sendPushNotification(username) {
@@ -329,7 +353,7 @@ io.on("connection", (socket) => {
   });
 
   // Private Message
-  socket.on("privateMessage", async ({ sender, receiver, message, type = "text", audio, image, fileName, mimeType }) => {
+  socket.on("privateMessage", async ({ sender, receiver, message, type = "text", audio, image, fileName, mimeType, replyTo }) => {
     const senderName = cleanUserName(sender);
     if (users[senderName] !== socket.id) return;
 
@@ -337,6 +361,7 @@ io.on("connection", (socket) => {
     const receiverId = users[receiverName];
     const isVoice = type === "voice";
     const isPhoto = type === "photo";
+    const cleanReplyTo = sanitizeReplyTo(replyTo);
 
     if (!receiverName) return;
     if (isVoice && (!audio || !mimeType)) return;
@@ -348,6 +373,7 @@ io.on("connection", (socket) => {
       receiver: receiverName,
       message: isVoice || isPhoto ? "" : message,
       type: isVoice ? "voice" : isPhoto ? "photo" : "text",
+      replyTo: cleanReplyTo,
       audio: isVoice ? audio : undefined,
       image: isPhoto ? image : undefined,
       fileName: isPhoto ? cleanUserName(fileName).slice(0, 80) || "talksy-photo" : undefined,
@@ -365,6 +391,7 @@ io.on("connection", (socket) => {
         image: msg.image,
         fileName: msg.fileName,
         mimeType: msg.mimeType,
+        replyTo: msg.replyTo,
         timestamp: msg.timestamp,
       });
     } else {
